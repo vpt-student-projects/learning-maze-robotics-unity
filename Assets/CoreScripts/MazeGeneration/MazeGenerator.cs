@@ -100,12 +100,19 @@ public class MazeGenerator : MonoBehaviour
     {
         Debug.Log("🔄 Step 2: Creating nodes...");
 
-        // Ждем один кадр чтобы убедиться что лабиринт полностью создан
         yield return null;
 
         nodeGenerator.CreateNodes();
 
-        Debug.Log($"✅ Nodes created: {mazeSizeInChunks.x * mazeSizeInChunks.y * chunkSize * chunkSize} total");
+        // Устанавливаем слой для всех нодов
+        NodeInfo[] allNodes = FindObjectsOfType<NodeInfo>();
+        foreach (NodeInfo node in allNodes)
+        {
+            node.gameObject.layer = LayerMask.NameToLayer("Floor");
+            SetLayerRecursively(node.gameObject, LayerMask.NameToLayer("Floor"));
+        }
+
+        Debug.Log($"✅ Nodes created: {allNodes.Length} (слой: Floor)");
         OnNodesCreated?.Invoke();
 
         yield return null;
@@ -115,33 +122,48 @@ public class MazeGenerator : MonoBehaviour
     {
         Debug.Log("🔄 Step 3: Spawning car...");
 
-        // Ждем пока ноды будут полностью созданы
         yield return new WaitUntil(() => FindObjectsOfType<NodeInfo>().Length > 0);
 
         CarController existingCar = FindObjectOfType<CarController>();
         if (existingCar != null)
         {
             carController = existingCar;
-            Debug.Log("✅ Using existing car controller");
+            // Устанавливаем слой для машинки
+            SetLayerRecursively(carController.gameObject, LayerMask.NameToLayer("Car"));
+            Debug.Log("✅ Using existing car controller (слой: Car)");
         }
         else
         {
-            // Создаем новый объект для машинки
             GameObject carObject = new GameObject("Car");
             carController = carObject.AddComponent<CarController>();
-
-            // Настраиваем машинку
             carController.carPrefab = carPrefab;
             carController.mazeGenerator = this;
-
-            // Инициализируем машинку
             carController.InitializeCar();
+
+            // Устанавливаем слой для машинки
+            SetLayerRecursively(carObject, LayerMask.NameToLayer("Car"));
         }
 
-        Debug.Log("✅ Car spawned successfully");
+        Debug.Log("✅ Car spawned successfully (слой: Car)");
         OnCarSpawned?.Invoke();
 
         yield return null;
+    }
+
+    // Добавьте вспомогательный метод
+    private void SetLayerRecursively(GameObject obj, int layer)
+    {
+        if (obj == null) return;
+
+        obj.layer = layer;
+
+        foreach (Transform child in obj.transform)
+        {
+            if (child != null)
+            {
+                SetLayerRecursively(child.gameObject, layer);
+            }
+        }
     }
 
     private IEnumerator StartAPICoroutine()

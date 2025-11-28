@@ -42,7 +42,13 @@ public class MazeVisualizer
         floor.transform.position = floorPosition;
         floor.name = "MazeFloor";
 
-        Debug.Log($"Пол создан: {totalWidth:F1}x{totalDepth:F1}");
+        // Устанавливаем слой "Floor"
+        floor.layer = LayerMask.NameToLayer("Floor");
+
+        // Если у пола есть дочерние объекты, тоже устанавливаем им слой Floor
+        SetLayerRecursively(floor, LayerMask.NameToLayer("Floor"));
+
+        Debug.Log($"Пол создан: {totalWidth:F1}x{totalDepth:F1} (слой: {LayerMask.LayerToName(floor.layer)})");
     }
 
     private void CreateWalls()
@@ -64,7 +70,7 @@ public class MazeVisualizer
             }
         }
 
-        Debug.Log($"Создано стен: {wallCount}");
+        Debug.Log($"Создано стен: {wallCount} (слой: Wall)");
     }
 
     private int CreateChunkWalls(int chunkX, int chunkZ)
@@ -134,6 +140,16 @@ public class MazeVisualizer
             wall.transform.localScale = new Vector3(generator.cellSize + generator.cellOffset.x, generator.wallHeight, generator.wallThickness);
         else
             wall.transform.localScale = new Vector3(generator.wallThickness, generator.wallHeight, generator.cellSize + generator.cellOffset.z);
+
+        // Устанавливаем слой "Wall"
+        wall.layer = LayerMask.NameToLayer("Wall");
+
+        // Если у стены есть дочерние объекты, тоже устанавливаем им слой Wall
+        SetLayerRecursively(wall, LayerMask.NameToLayer("Wall"));
+
+        // Переименовываем для удобства отладки
+        string wallType = isHorizontal ? "Horizontal" : "Vertical";
+        wall.name = $"Wall_{wallType}_Chunk({chunkBaseOffset.x / (mazeData.ChunkSize * generator.cellSize):F0},{chunkBaseOffset.z / (mazeData.ChunkSize * generator.cellSize):F0})_Pos({x},{y})";
     }
 
     private void CreateFinishVisual()
@@ -149,6 +165,25 @@ public class MazeVisualizer
         GameObject finish = Object.Instantiate(generator.finishPrefab, finishPosition, Quaternion.identity, mazeParent.transform);
         finish.name = "FinishArea";
         finish.transform.localScale = new Vector3(generator.cellSize * 2, 1, generator.cellSize * 2);
+
+        // Устанавливаем слой "Floor" для финишной зоны
+        finish.layer = LayerMask.NameToLayer("Floor");
+        SetLayerRecursively(finish, LayerMask.NameToLayer("Floor"));
+    }
+
+    private void SetLayerRecursively(GameObject obj, int layer)
+    {
+        if (obj == null) return;
+
+        obj.layer = layer;
+
+        foreach (Transform child in obj.transform)
+        {
+            if (child != null)
+            {
+                SetLayerRecursively(child.gameObject, layer);
+            }
+        }
     }
 
     public void Clear()
