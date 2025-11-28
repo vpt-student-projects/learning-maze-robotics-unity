@@ -1,43 +1,171 @@
+п»їusing System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Events;
 
 public class MazeGenerator : MonoBehaviour
 {
-    [Header("Настройки лабиринта")]
-    public int chunkSize = 10;
+    [Header("РќР°СЃС‚СЂРѕР№РєРё Р»Р°Р±РёСЂРёРЅС‚Р°")]
+    public int chunkSize = 4;
     public Vector2Int mazeSizeInChunks = new Vector2Int(3, 3);
-    [Tooltip("При включении использует правило правой руки, при выключении - полностью случайную генерацию")]
     public bool useRightHandRule = true;
     public bool createFinishArea = true;
 
-    [Header("Настройки смещения")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё СЃРјРµС‰РµРЅРёСЏ")]
     public Vector3 chunkOffset = Vector3.zero;
     public Vector3 cellOffset = Vector3.zero;
     public Vector3 wallOffset = Vector3.zero;
 
-    [Header("Префабы")]
+    [Header("РџСЂРµС„Р°Р±С‹")]
     public GameObject wallPrefab;
     public GameObject floorPrefab;
     public GameObject finishPrefab;
     public GameObject nodePrefab;
+    public GameObject carPrefab;
 
-    [Header("Настройки генерации")]
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РіРµРЅРµСЂР°С†РёРё")]
     public float cellSize = 2f;
     public float wallHeight = 3f;
     public float wallThickness = 0.1f;
 
-    [Header("Камера")]
+    [Header("РљР°РјРµСЂР°")]
     public MazeCameraController cameraController;
+
+    [Header("РЎРѕР±С‹С‚РёСЏ")]
+    public UnityEvent OnMazeGenerated;
+    public UnityEvent OnNodesCreated;
+    public UnityEvent OnCarSpawned;
+    public UnityEvent OnAllInitialized;
 
     private MazeData mazeData;
     private MazeBuilder mazeBuilder;
     private NodeGenerator nodeGenerator;
+    private CarController carController;
     private bool isGenerating = false;
 
     void Start()
     {
-        GenerateMaze();
+        StartCoroutine(InitializeSequence());
+    }
+
+    private IEnumerator InitializeSequence()
+    {
+        Debug.Log("рџљЂ Starting initialization sequence...");
+        isGenerating = true;
+
+        // 1. Р“РµРЅРµСЂР°С†РёСЏ Р»Р°Р±РёСЂРёРЅС‚Р°
+        yield return StartCoroutine(GenerateMazeCoroutine());
+
+        // 2. РЎРѕР·РґР°РЅРёРµ РЅРѕРґРѕРІ
+        yield return StartCoroutine(CreateNodesCoroutine());
+
+        // 3. РЎРѕР·РґР°РЅРёРµ РјР°С€РёРЅРєРё
+        yield return StartCoroutine(SpawnCarCoroutine());
+
+        // 4. Р—Р°РїСѓСЃРє API
+        yield return StartCoroutine(StartAPICoroutine());
+
+        Debug.Log("рџЋ‰ All systems initialized successfully!");
+        OnAllInitialized?.Invoke();
+        isGenerating = false;
+    }
+
+    [ContextMenu("РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ Р»Р°Р±РёСЂРёРЅС‚")]
+    public void GenerateMaze()
+    {
+        if (!isGenerating)
+            StartCoroutine(InitializeSequence());
+    }
+
+    private IEnumerator GenerateMazeCoroutine()
+    {
+        Debug.Log("рџ”„ Step 1: Generating maze...");
+        ClearExistingMaze();
+        InitializeComponents();
+
+        mazeData.Initialize();
+        mazeBuilder.Generate();
+
+        // РћР±РЅРѕРІР»СЏРµРј РєР°РјРµСЂСѓ РїРѕСЃР»Рµ РіРµРЅРµСЂР°С†РёРё Р»Р°Р±РёСЂРёРЅС‚Р°
+        if (cameraController != null)
+            cameraController.UpdateCameraForNewMaze();
+
+        Debug.Log($"вњ… Maze generated: {mazeSizeInChunks.x}x{mazeSizeInChunks.y} chunks, {chunkSize} cells per chunk");
+        OnMazeGenerated?.Invoke();
+
+        yield return null;
+    }
+
+    private IEnumerator CreateNodesCoroutine()
+    {
+        Debug.Log("рџ”„ Step 2: Creating nodes...");
+
+        // Р–РґРµРј РѕРґРёРЅ РєР°РґСЂ С‡С‚РѕР±С‹ СѓР±РµРґРёС‚СЊСЃСЏ С‡С‚Рѕ Р»Р°Р±РёСЂРёРЅС‚ РїРѕР»РЅРѕСЃС‚СЊСЋ СЃРѕР·РґР°РЅ
+        yield return null;
+
+        nodeGenerator.CreateNodes();
+
+        Debug.Log($"вњ… Nodes created: {mazeSizeInChunks.x * mazeSizeInChunks.y * chunkSize * chunkSize} total");
+        OnNodesCreated?.Invoke();
+
+        yield return null;
+    }
+
+    private IEnumerator SpawnCarCoroutine()
+    {
+        Debug.Log("рџ”„ Step 3: Spawning car...");
+
+        // Р–РґРµРј РїРѕРєР° РЅРѕРґС‹ Р±СѓРґСѓС‚ РїРѕР»РЅРѕСЃС‚СЊСЋ СЃРѕР·РґР°РЅС‹
+        yield return new WaitUntil(() => FindObjectsOfType<NodeInfo>().Length > 0);
+
+        CarController existingCar = FindObjectOfType<CarController>();
+        if (existingCar != null)
+        {
+            carController = existingCar;
+            Debug.Log("вњ… Using existing car controller");
+        }
+        else
+        {
+            // РЎРѕР·РґР°РµРј РЅРѕРІС‹Р№ РѕР±СЉРµРєС‚ РґР»СЏ РјР°С€РёРЅРєРё
+            GameObject carObject = new GameObject("Car");
+            carController = carObject.AddComponent<CarController>();
+
+            // РќР°СЃС‚СЂР°РёРІР°РµРј РјР°С€РёРЅРєСѓ
+            carController.carPrefab = carPrefab;
+            carController.mazeGenerator = this;
+
+            // РРЅРёС†РёР°Р»РёР·РёСЂСѓРµРј РјР°С€РёРЅРєСѓ
+            carController.InitializeCar();
+        }
+
+        Debug.Log("вњ… Car spawned successfully");
+        OnCarSpawned?.Invoke();
+
+        yield return null;
+    }
+
+    private IEnumerator StartAPICoroutine()
+    {
+        Debug.Log("рџ”„ Step 4: Starting API...");
+
+        // Р–РґРµРј РїРѕРєР° РјР°С€РёРЅРєР° Р±СѓРґРµС‚ РіРѕС‚РѕРІР°
+        yield return new WaitUntil(() => carController != null && carController.IsCarReady());
+
+        CarAPIController apiController = FindObjectOfType<CarAPIController>();
+        if (apiController == null)
+        {
+            // РЎРѕР·РґР°РµРј API РєРѕРЅС‚СЂРѕР»Р»РµСЂ РµСЃР»Рё РµРіРѕ РЅРµС‚
+            GameObject apiObject = new GameObject("CarAPIController");
+            apiController = apiObject.AddComponent<CarAPIController>();
+        }
+
+        // РќР°СЃС‚СЂР°РёРІР°РµРј API РєРѕРЅС‚СЂРѕР»Р»РµСЂ
+        apiController.SetCarController(carController);
+        apiController.StartServer();
+
+        Debug.Log("вњ… API started successfully");
+
+        yield return null;
     }
 
     private void InitializeComponents()
@@ -50,42 +178,28 @@ public class MazeGenerator : MonoBehaviour
             cameraController = FindObjectOfType<MazeCameraController>();
     }
 
-    [ContextMenu("Сгенерировать лабиринт")]
-    public void GenerateMaze()
-    {
-        if (isGenerating) return;
-
-        StartCoroutine(GenerateMazeCoroutine());
-    }
-
-    private IEnumerator GenerateMazeCoroutine()
-    {
-        isGenerating = true;
-        ClearExistingMaze();
-        InitializeComponents();
-
-        mazeData.Initialize();
-        mazeBuilder.Generate();
-
-        // Ждем один кадр перед созданием нодов
-        yield return null;
-
-        nodeGenerator.CreateNodes();
-
-        if (cameraController != null)
-            cameraController.UpdateCameraForNewMaze();
-
-        Debug.Log($"Лабиринт сгенерирован: {mazeSizeInChunks.x}x{mazeSizeInChunks.y} чанков, {chunkSize} ячеек в чанке. Правило правой руки: {useRightHandRule}");
-        isGenerating = false;
-    }
-
-    [ContextMenu("Очистить лабиринт")]
+    [ContextMenu("РћС‡РёСЃС‚РёС‚СЊ Р»Р°Р±РёСЂРёРЅС‚")]
     private void ClearExistingMaze()
     {
         mazeBuilder?.Clear();
         nodeGenerator?.Clear();
+
+        // РЈРґР°Р»СЏРµРј СЃС‚Р°СЂСѓСЋ РјР°С€РёРЅРєСѓ
+        CarController[] oldCars = FindObjectsOfType<CarController>();
+        foreach (CarController car in oldCars)
+        {
+            if (Application.isPlaying)
+                Destroy(car.gameObject);
+            else
+                DestroyImmediate(car.gameObject);
+        }
+
+        // РћСЃС‚Р°РЅР°РІР»РёРІР°РµРј API
+        CarAPIController api = FindObjectOfType<CarAPIController>();
+        api?.StopServer();
     }
 
+    // Public getters РґР»СЏ РґРѕСЃС‚СѓРїР° РёР· РґСЂСѓРіРёС… РєР»Р°СЃСЃРѕРІ
     public Vector3 GetCellWorldPosition(int chunkX, int chunkZ, int cellX, int cellY)
     {
         return new Vector3(
@@ -96,6 +210,7 @@ public class MazeGenerator : MonoBehaviour
     }
 
     public MazeData GetMazeData() => mazeData;
+    public CarController GetCarController() => carController;
 
     public int GetTotalCellsX() => mazeSizeInChunks.x * chunkSize;
     public int GetTotalCellsZ() => mazeSizeInChunks.y * chunkSize;

@@ -1,38 +1,85 @@
-using UnityEngine;
+п»їusing UnityEngine;
 
 public class BackgroundEnforcer : MonoBehaviour
 {
     [Header("Background Settings")]
     public bool runInBackground = true;
     public int targetFrameRate = 60;
+    public bool preventSleep = true;
+
+    [Header("Monitoring")]
+    public bool logStatusChanges = true;
 
     void Start()
     {
-        // Заставляем работать в фоне
-        Application.runInBackground = runInBackground;
+        ApplyBackgroundSettings();
 
-        // Устанавливаем целевой FPS
-        Application.targetFrameRate = targetFrameRate;
-
-        // Отключаем сон экрана
-        Screen.sleepTimeout = SleepTimeout.NeverSleep;
-
-        Debug.Log($"Background settings applied: RunInBackground={Application.runInBackground}, TargetFPS={Application.targetFrameRate}");
+        // Р”СѓР±Р»РёСЂСѓРµРј РЅР°СЃС‚СЂРѕР№РєРё РЅР° СЃР»СѓС‡Р°Р№ РµСЃР»Рё РґСЂСѓРіРёРµ СЃРёСЃС‚РµРјС‹ РёС… РјРµРЅСЏСЋС‚
+        InvokeRepeating("EnforceBackgroundSettings", 1f, 5f);
     }
 
     void OnApplicationFocus(bool hasFocus)
     {
-        Debug.Log($"Application focus: {hasFocus}");
+        if (logStatusChanges)
+        {
+            Debug.Log($"рџЋЇ Application focus: {hasFocus}");
+        }
 
-        // Если потеряли фокус, но runInBackground true - все должно продолжать работать
+        // РџСЂРё РїРѕС‚РµСЂРµ С„РѕРєСѓСЃР° СѓСЃРёР»РёРІР°РµРј РЅР°СЃС‚СЂРѕР№РєРё С„РѕРЅР°
         if (!hasFocus)
         {
-            Debug.Log("Application lost focus, but should continue running in background");
+            ApplyBackgroundSettings();
         }
     }
 
     void OnApplicationPause(bool pauseStatus)
     {
-        Debug.Log($"Application pause: {pauseStatus}");
+        if (logStatusChanges)
+        {
+            Debug.Log($"вЏёпёЏ Application pause: {pauseStatus}");
+        }
+    }
+
+    private void ApplyBackgroundSettings()
+    {
+        Application.runInBackground = runInBackground;
+        Application.targetFrameRate = targetFrameRate;
+
+        if (preventSleep)
+        {
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;
+        }
+
+        if (logStatusChanges)
+        {
+            Debug.Log($"рџ”§ Background settings enforced: " +
+                     $"RunInBackground={Application.runInBackground}, " +
+                     $"TargetFPS={Application.targetFrameRate}, " +
+                     $"SleepTimeout={Screen.sleepTimeout}");
+        }
+    }
+
+    private void EnforceBackgroundSettings()
+    {
+        // РџРѕСЃС‚РѕСЏРЅРЅРѕ РїСЂРёРјРµРЅСЏРµРј РЅР°СЃС‚СЂРѕР№РєРё С‡С‚РѕР±С‹ РґСЂСѓРіРёРµ СЃРёСЃС‚РµРјС‹ РёС… РЅРµ РјРµРЅСЏР»Рё
+        if (!Application.runInBackground && runInBackground)
+        {
+            Debug.LogWarning("вљ пёЏ runInBackground was disabled - re-enforcing");
+            Application.runInBackground = true;
+        }
+
+        if (Application.targetFrameRate != targetFrameRate)
+        {
+            Application.targetFrameRate = targetFrameRate;
+        }
+    }
+
+    [ContextMenu("Print Current Settings")]
+    private void PrintCurrentSettings()
+    {
+        Debug.Log($"Current Settings - RunInBackground: {Application.runInBackground}, " +
+                 $"TargetFPS: {Application.targetFrameRate}, " +
+                 $"SleepTimeout: {Screen.sleepTimeout}, " +
+                 $"HasFocus: {Application.isFocused}");
     }
 }

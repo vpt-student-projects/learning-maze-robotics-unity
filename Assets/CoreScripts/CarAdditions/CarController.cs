@@ -1,19 +1,19 @@
-using UnityEngine;
+п»їusing UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
 public class CarController : MonoBehaviour
 {
-    [Header("Настройки машинки")]
-    public float moveSpeed = 5f;
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РјР°С€РёРЅРєРё")]
+    public float moveSpeed = 10f;
     public float rotationSpeed = 270f;
     public float nodeProximityThreshold = 0.1f;
 
-    [Header("Анимация")]
-    public float rotationAnimationTime = 0.3f;
-    public float moveAnimationTime = 0.2f;
+    [Header("РђРЅРёРјР°С†РёСЏ")]
+    public float rotationAnimationTime = 0.07f;
+    public float moveAnimationTime = 0.08f;
 
-    [Header("Ссылки")]
+    [Header("РЎСЃС‹Р»РєРё")]
     public GameObject carPrefab;
     public MazeGenerator mazeGenerator;
 
@@ -23,19 +23,19 @@ public class CarController : MonoBehaviour
     private Vector3 targetPosition;
     private bool isMoving = false;
     private bool isRotating = false;
+    private bool isInitialized = false;
 
     private int currentDirection = 0;
     private Vector2Int[] directionVectors = {
-        Vector2Int.up,    // вперед (Z+)
-        Vector2Int.right, // вправо (X+)
-        Vector2Int.down,  // назад (Z-)
-        Vector2Int.left   // влево (X-)
+        Vector2Int.up,    // РІРїРµСЂРµРґ (Z+)
+        Vector2Int.right, // РІРїСЂР°РІРѕ (X+)
+        Vector2Int.down,  // РЅР°Р·Р°Рґ (Z-)
+        Vector2Int.left   // РІР»РµРІРѕ (X-)
     };
 
     private MazeData mazeData;
     private Dictionary<Vector2Int, NodeInfo> nodeMap;
     private Coroutine currentMovementCoroutine;
-
     void Start()
     {
         Invoke(nameof(InitializeCar), 0.5f);
@@ -43,26 +43,135 @@ public class CarController : MonoBehaviour
 
     void Update()
     {
+        if (!isInitialized) return;
         HandleInput();
     }
-
-    private void InitializeCar()
+    private IEnumerator InitializeCarCoroutine()
     {
+        Debug.Log("рџљ— Initializing car...");
+
         if (mazeGenerator == null)
         {
             mazeGenerator = FindObjectOfType<MazeGenerator>();
             if (mazeGenerator == null)
             {
-                Debug.LogError("MazeGenerator не найден!");
-                return;
+                Debug.LogError("MazeGenerator not found!");
+                yield break;
             }
         }
 
+        // Р–РґРµРј РїРѕРєР° РґР°РЅРЅС‹Рµ Р»Р°Р±РёСЂРёРЅС‚Р° Р±СѓРґСѓС‚ РіРѕС‚РѕРІС‹
+        yield return new WaitUntil(() => mazeGenerator.GetMazeData() != null);
+
         mazeData = mazeGenerator.GetMazeData();
+
+        // Р–РґРµРј РїРѕРєР° РІСЃРµ РЅРѕРґС‹ Р±СѓРґСѓС‚ СЃРѕР·РґР°РЅС‹
+        yield return new WaitUntil(() => FindObjectsOfType<NodeInfo>().Length > 0);
+
         BuildNodeMap();
         SpawnCarAtStart();
+
+        isInitialized = true;
+        Debug.Log("вњ… Car initialized successfully!");
+    }
+    public void InitializeCar()
+    {
+        if (isInitialized) return;
+
+        StartCoroutine(InitializeCarCoroutine());
     }
 
+    //private void InitializeCar()
+    //{
+    //    if (mazeGenerator == null)
+    //    {
+    //        mazeGenerator = FindObjectOfType<MazeGenerator>();
+    //        if (mazeGenerator == null)
+    //        {
+    //            Debug.LogError("MazeGenerator РЅРµ РЅР°Р№РґРµРЅ!");
+    //            return;
+    //        }
+    //    }
+
+    //    mazeData = mazeGenerator.GetMazeData();
+    //    BuildNodeMap();
+    //    SpawnCarAtStart();
+
+    //    // РЈРІРµРґРѕРјР»СЏРµРј API РєРѕРЅС‚СЂРѕР»Р»РµСЂ Рѕ СЃРѕР·РґР°РЅРёРё РјР°С€РёРЅРєРё
+    //    NotifyAPIController();
+    //}
+    //private void NotifyAPIController()
+    //{
+    //    // РС‰РµРј РІСЃРµ API РєРѕРЅС‚СЂРѕР»Р»РµСЂС‹ РІ СЃС†РµРЅРµ Рё СѓРІРµРґРѕРјР»СЏРµРј РёС…
+    //    CarAPIController[] apiControllers = FindObjectsOfType<CarAPIController>();
+    //    foreach (CarAPIController apiController in apiControllers)
+    //    {
+    //        if (apiController != null)
+    //        {
+    //            // Р’С‹Р·С‹РІР°РµРј РјРµС‚РѕРґ СѓСЃС‚Р°РЅРѕРІРєРё РєРѕРЅС‚СЂРѕР»Р»РµСЂР°
+    //            apiController.SetCarController(this);
+    //        }
+    //    }
+
+    //    if (apiControllers.Length == 0)
+    //    {
+    //        Debug.LogWarning("CarAPIController РЅРµ РЅР°Р№РґРµРЅ РІ СЃС†РµРЅРµ!");
+    //    }
+    //    else
+    //    {
+    //        Debug.Log($"вњ… РЈРІРµРґРѕРјР»РµРЅРѕ {apiControllers.Length} API РєРѕРЅС‚СЂРѕР»Р»РµСЂРѕРІ Рѕ СЃРѕР·РґР°РЅРёРё РјР°С€РёРЅРєРё");
+    //    }
+    //}
+    public void TurnLeft()
+    {
+        if (!IsCarReady() || isMoving || isRotating) return;
+        StartCoroutine(RotateCar(-1));
+    }
+
+    public void TurnRight()
+    {
+        if (!IsCarReady() || isMoving || isRotating) return;
+        StartCoroutine(RotateCar(1));
+    }
+
+    public void MoveForward()
+    {
+        if (!IsCarReady() || isMoving || isRotating) return;
+        TryMoveInDirection(currentDirection);
+    }
+
+    public void MoveBackward()
+    {
+        if (!IsCarReady() || isMoving || isRotating) return;
+        TryMoveInDirection((currentDirection + 2) % 4);
+    }
+
+    // РќРѕРІС‹Р№ РјРµС‚РѕРґ РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ СЂР°СЃС€РёСЂРµРЅРЅРѕР№ РёРЅС„РѕСЂРјР°С†РёРё
+    public CarStatus GetCarStatus()
+    {
+        return new CarStatus
+        {
+            chunkCoordinates = GetCurrentChunkCoordinates(),
+            cellCoordinates = GetCurrentCellCoordinates(),
+            direction = GetCurrentDirectionName(),
+            isMoving = isMoving,
+            isRotating = isRotating
+        };
+    }
+
+    [System.Serializable]
+    public struct CarStatus
+    {
+        public Vector2Int chunkCoordinates;
+        public Vector2Int cellCoordinates;
+        public string direction;
+        public bool isMoving;
+        public bool isRotating;
+    }
+    public bool IsCarReady()
+    {
+        return isInitialized && carInstance != null && currentNode != null;
+    }
     private void BuildNodeMap()
     {
         nodeMap = new Dictionary<Vector2Int, NodeInfo>();
@@ -81,7 +190,7 @@ public class CarController : MonoBehaviour
             }
         }
 
-        Debug.Log($"Построена карта нодов: {nodeMap.Count} нодов");
+        Debug.Log($"рџ“Ќ Node map built: {nodeMap.Count} nodes");
     }
 
     private void SpawnCarAtStart()
@@ -92,11 +201,11 @@ public class CarController : MonoBehaviour
         {
             currentNode = nodeMap[startKey];
             SpawnCarAtNode(currentNode);
-            Debug.Log($"Машинка создана на стартовом ноде: {startKey}");
+            Debug.Log($"рџљ— Car spawned at start node: {startKey}");
         }
         else
         {
-            Debug.LogWarning($"Стартовый нод {startKey} не найден. Ищу альтернативный...");
+            Debug.LogWarning($"Start node {startKey} not found. Looking for alternative...");
             FindAlternativeStartNode();
         }
     }
@@ -112,36 +221,39 @@ public class CarController : MonoBehaviour
             {
                 currentNode = pair.Value;
                 SpawnCarAtNode(currentNode);
-                Debug.Log($"Машинка создана на альтернативном ноде: {pair.Key}");
+                Debug.Log($"рџљ— Car spawned at alternative node: {pair.Key}");
                 return;
             }
         }
 
+        // Р•СЃР»Рё РЅРµ РЅР°С€Р»Рё РІ С‡Р°РЅРєРµ (0,0), РёСЃРїРѕР»СЊР·СѓРµРј РїРµСЂРІС‹Р№ РґРѕСЃС‚СѓРїРЅС‹Р№ РЅРѕРґ
         foreach (var pair in nodeMap)
         {
             currentNode = pair.Value;
             SpawnCarAtNode(currentNode);
-            Debug.Log($"Машинка создана на случайном ноде: {pair.Key}");
+            Debug.Log($"рџљ— Car spawned at random node: {pair.Key}");
             return;
         }
 
-        Debug.LogError("Не найдено ни одного нода для спавна машинки!");
+        Debug.LogError("вќЊ No nodes found for car spawn!");
     }
 
     private void SpawnCarAtNode(NodeInfo node)
     {
         if (carPrefab == null)
         {
-            Debug.LogError("Car prefab не назначен!");
+            Debug.LogError("вќЊ Car prefab not assigned!");
             return;
         }
 
         Vector3 spawnPosition = node.transform.position + Vector3.up * 0.5f;
-        carInstance = Instantiate(carPrefab, spawnPosition, Quaternion.identity);
+        carInstance = Instantiate(carPrefab, spawnPosition, Quaternion.identity, transform);
         carInstance.name = "PlayerCar";
 
         currentDirection = 0;
         UpdateCarRotationImmediate();
+
+        Debug.Log($"рџЋЇ Car positioned at: Chunk({node.chunkX},{node.chunkZ}) Cell({node.cellX},{node.cellZ})");
     }
 
     private void HandleInput()
@@ -176,7 +288,7 @@ public class CarController : MonoBehaviour
         float startAngle = carInstance.transform.eulerAngles.y;
         float targetAngle = targetDirection * 90f;
 
-        // Нормализуем углы для плавного вращения
+        // РќРѕСЂРјР°Р»РёР·СѓРµРј СѓРіР»С‹ РґР»СЏ РїР»Р°РІРЅРѕРіРѕ РІСЂР°С‰РµРЅРёСЏ
         float currentAngle = startAngle;
         float angleDifference = Mathf.DeltaAngle(currentAngle, targetAngle);
 
@@ -196,7 +308,7 @@ public class CarController : MonoBehaviour
         currentDirection = targetDirection;
         isRotating = false;
 
-        Debug.Log($"Поворот завершен. Текущее направление: {GetDirectionName()}");
+        Debug.Log($"РџРѕРІРѕСЂРѕС‚ Р·Р°РІРµСЂС€РµРЅ. РўРµРєСѓС‰РµРµ РЅР°РїСЂР°РІР»РµРЅРёРµ: {GetDirectionName()}");
     }
 
     private void TryMoveInDirection(int direction)
@@ -213,7 +325,7 @@ public class CarController : MonoBehaviour
         }
         else
         {
-            Debug.Log($"Движение {GetDirectionName(direction)} заблокировано стеной!");
+            Debug.Log($"Р”РІРёР¶РµРЅРёРµ {GetDirectionName(direction)} Р·Р°Р±Р»РѕРєРёСЂРѕРІР°РЅРѕ СЃС‚РµРЅРѕР№!");
         }
     }
 
@@ -241,7 +353,7 @@ public class CarController : MonoBehaviour
         currentNode = targetNode;
         isMoving = false;
 
-        Debug.Log($"Машинка перемещена на нод: Чанк({currentNode.chunkX},{currentNode.chunkZ}) Ячейка({currentNode.cellX},{currentNode.cellZ})");
+        Debug.Log($"РњР°С€РёРЅРєР° РїРµСЂРµРјРµС‰РµРЅР° РЅР° РЅРѕРґ: Р§Р°РЅРє({currentNode.chunkX},{currentNode.chunkZ}) РЇС‡РµР№РєР°({currentNode.cellX},{currentNode.cellZ})");
     }
 
     private NodeInfo GetNodeInDirection(Vector2Int direction)
@@ -276,7 +388,7 @@ public class CarController : MonoBehaviour
     private string GetDirectionName(int direction = -1)
     {
         if (direction == -1) direction = currentDirection;
-        string[] directionNames = { "Вперед", "Вправо", "Назад", "Влево" };
+        string[] directionNames = { "Р’РїРµСЂРµРґ", "Р’РїСЂР°РІРѕ", "РќР°Р·Р°Рґ", "Р’Р»РµРІРѕ" };
         return directionNames[direction];
     }
 
@@ -293,7 +405,7 @@ public class CarController : MonoBehaviour
             isMoving = false;
             isRotating = false;
 
-            Debug.Log($"Машинка телепортирована на нод: Чанк({node.chunkX},{node.chunkZ}) Ячейка({node.cellX},{node.cellZ})");
+            Debug.Log($"РњР°С€РёРЅРєР° С‚РµР»РµРїРѕСЂС‚РёСЂРѕРІР°РЅР° РЅР° РЅРѕРґ: Р§Р°РЅРє({node.chunkX},{node.chunkZ}) РЇС‡РµР№РєР°({node.cellX},{node.cellZ})");
         }
     }
 

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 public class NodeGenerator
@@ -17,7 +17,7 @@ public class NodeGenerator
     {
         if (generator.nodePrefab == null)
         {
-            Debug.LogWarning("Node prefab �� ��������! ���� �� ����� �������.");
+            Debug.LogWarning("Node prefab не назначен! Ноды не будут созданы.");
             return;
         }
 
@@ -27,20 +27,33 @@ public class NodeGenerator
 
         if (mazeData.Chunks == null)
         {
-            Debug.LogError("MazeData �� ����������������! ������� �������� GenerateMaze()");
+            Debug.LogError("MazeData не инициализирована! Сначала вызовите GenerateMaze()");
             return;
         }
 
         int totalNodes = 0;
+        int createdNodes = 0;
 
+        // Сначала подсчитаем общее количество нодов
         for (int chunkX = 0; chunkX < mazeData.MazeSizeInChunks.x; chunkX++)
         {
             for (int chunkZ = 0; chunkZ < mazeData.MazeSizeInChunks.y; chunkZ++)
             {
-                // ��������� ������������� �����
+                totalNodes += mazeData.ChunkSize * mazeData.ChunkSize;
+            }
+        }
+
+        Debug.Log($"🔄 Creating {totalNodes} nodes...");
+
+        // Создаем ноды
+        for (int chunkX = 0; chunkX < mazeData.MazeSizeInChunks.x; chunkX++)
+        {
+            for (int chunkZ = 0; chunkZ < mazeData.MazeSizeInChunks.y; chunkZ++)
+            {
+                // Проверяем существование чанка
                 if (mazeData.Chunks[chunkX, chunkZ] == null)
                 {
-                    Debug.LogWarning($"���� [{chunkX}, {chunkZ}] �� ���������������");
+                    Debug.LogWarning($"Чанк [{chunkX}, {chunkZ}] не инициализирован");
                     continue;
                 }
 
@@ -48,32 +61,101 @@ public class NodeGenerator
                 {
                     for (int cellZ = 0; cellZ < mazeData.ChunkSize; cellZ++)
                     {
-                        CreateNode(chunkX, chunkZ, cellX, cellZ);
+                        if (CreateNode(chunkX, chunkZ, cellX, cellZ))
+                        {
+                            createdNodes++;
+                        }
                         totalNodes++;
                     }
                 }
             }
         }
 
-        Debug.Log($"������� �����: {totalNodes} (������: {mazeData.MazeSizeInChunks.x * mazeData.MazeSizeInChunks.y}, �����: {mazeData.ChunkSize * mazeData.ChunkSize})");
+        Debug.Log($"✅ Создано нодов: {createdNodes} (чанков: {mazeData.MazeSizeInChunks.x * mazeData.MazeSizeInChunks.y}, ячеек: {mazeData.ChunkSize * mazeData.ChunkSize})");
+
+        // Валидация нодов
+        ValidateNodes();
     }
 
-    private void CreateNode(int chunkX, int chunkZ, int cellX, int cellZ)
+    private bool CreateNode(int chunkX, int chunkZ, int cellX, int cellZ)
     {
         try
         {
             Vector3 nodePosition = generator.GetCellWorldPosition(chunkX, chunkZ, cellX, cellZ);
+
+            // Небольшое смещение вверх чтобы ноды не были в полу
+            nodePosition += Vector3.up * 0.1f;
+
             GameObject node = Object.Instantiate(generator.nodePrefab, nodePosition, Quaternion.identity, nodesParent.transform);
             node.name = $"Node_Chunk({chunkX},{chunkZ})_Cell({cellX},{cellZ})";
 
             NodeInfo nodeInfo = node.GetComponent<NodeInfo>() ?? node.AddComponent<NodeInfo>();
             nodeInfo.SetCoordinates(chunkX, chunkZ, cellX, cellZ);
 
+            // Добавляем коллайдер для визуализации и отладки
+            SphereCollider collider = node.GetComponent<SphereCollider>() ?? node.AddComponent<SphereCollider>();
+            collider.radius = 0.2f;
+            collider.isTrigger = true;
+
             nodes.Add(node);
+            return true;
         }
         catch (System.Exception e)
         {
-            Debug.LogError($"������ �������� ���� � [{chunkX},{chunkZ}] [{cellX},{cellZ}]: {e.Message}");
+            Debug.LogError($"Ошибка создания нода в [{chunkX},{chunkZ}] [{cellX},{cellZ}]: {e.Message}");
+            return false;
+        }
+    }
+
+    private void ValidateNodes()
+    {
+        // Проверяем что все ноды созданы правильно
+        NodeInfo[] allNodes = Object.FindObjectsOfType<NodeInfo>();
+        Dictionary<Vector2Int, NodeInfo> nodeMap = new Dictionary<Vector2Int, NodeInfo>();
+        var mazeData = generator.GetMazeData();
+
+        int duplicateNodes = 0;
+        int missingNodes = 0;
+
+        foreach (NodeInfo node in allNodes)
+        {
+            Vector2Int globalPos = new Vector2Int(
+                node.chunkX * mazeData.ChunkSize + node.cellX,
+                node.chunkZ * mazeData.ChunkSize + node.cellZ
+            );
+
+            if (nodeMap.ContainsKey(globalPos))
+            {
+                duplicateNodes++;
+                Debug.LogWarning($"🔴 Дубликат нода: {globalPos} - {node.name} и {nodeMap[globalPos].name}");
+            }
+            else
+            {
+                nodeMap[globalPos] = node;
+            }
+        }
+
+        // Проверяем отсутствующие ноды
+        for (int globalX = 0; globalX < mazeData.TotalCellsX; globalX++)
+        {
+            for (int globalZ = 0; globalZ < mazeData.TotalCellsZ; globalZ++)
+            {
+                Vector2Int globalPos = new Vector2Int(globalX, globalZ);
+                if (!nodeMap.ContainsKey(globalPos))
+                {
+                    missingNodes++;
+                    Debug.LogWarning($"🔴 Отсутствует нод: {globalPos}");
+                }
+            }
+        }
+
+        if (duplicateNodes > 0 || missingNodes > 0)
+        {
+            Debug.LogError($"❌ Проблемы с нодами: Дубликаты: {duplicateNodes}, Отсутствуют: {missingNodes}");
+        }
+        else
+        {
+            Debug.Log("✅ Все ноды созданы корректно");
         }
     }
 
