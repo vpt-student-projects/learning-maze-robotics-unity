@@ -43,12 +43,13 @@ public class MazeGenerator : MonoBehaviour
     private CarController carController;
     private bool isGenerating = false;
 
-    void Start()
+    public bool IsGenerating()
     {
-        StartCoroutine(InitializeSequence());
+        return isGenerating;
     }
 
-    private IEnumerator InitializeSequence()
+    // Сделайте InitializeSequence публичным
+    public IEnumerator InitializeSequence()
     {
         Debug.Log("🚀 Starting initialization sequence...");
         isGenerating = true;

@@ -17,6 +17,10 @@ public class CarController : MonoBehaviour
     public GameObject carPrefab;
     public MazeGenerator mazeGenerator;
 
+    [Header("Отладка")]
+    public bool showDebugLines = false;
+    public bool logMovements = true;
+
     private GameObject carInstance;
     private NodeInfo currentNode;
     private NodeInfo targetNode;
@@ -46,14 +50,11 @@ public class CarController : MonoBehaviour
 
     private IEnumerator InitializeCarCoroutine()
     {
-        Debug.Log("🚗 Initializing car...");
-
         if (mazeGenerator == null)
         {
             mazeGenerator = FindObjectOfType<MazeGenerator>();
             if (mazeGenerator == null)
             {
-                Debug.LogError("MazeGenerator not found!");
                 yield break;
             }
         }
@@ -66,8 +67,7 @@ public class CarController : MonoBehaviour
         // Ждем пока все ноды будут созданы
         yield return new WaitUntil(() => {
             NodeInfo[] nodes = FindObjectsOfType<NodeInfo>();
-            bool nodesReady = nodes.Length >= mazeData.TotalCellsX * mazeData.TotalCellsZ * 0.8f; // 80% нодов создано
-            if (!nodesReady) Debug.Log($"⏳ Waiting for nodes... {nodes.Length}/{(mazeData.TotalCellsX * mazeData.TotalCellsZ)}");
+            bool nodesReady = nodes.Length >= mazeData.TotalCellsX * mazeData.TotalCellsZ * 0.8f;
             return nodesReady;
         });
 
@@ -75,7 +75,6 @@ public class CarController : MonoBehaviour
         SpawnCarAtStart();
 
         isInitialized = true;
-        Debug.Log("✅ Car initialized successfully!");
     }
 
     void Update()
@@ -83,7 +82,11 @@ public class CarController : MonoBehaviour
         if (!isInitialized) return;
 
         HandleInput();
-        DebugWallsAroundCar();
+
+        if (showDebugLines)
+        {
+            DebugWallsAroundCar();
+        }
     }
 
     public bool IsCarReady()
@@ -96,7 +99,6 @@ public class CarController : MonoBehaviour
         nodeMap = new Dictionary<Vector2Int, NodeInfo>();
 
         NodeInfo[] allNodes = FindObjectsOfType<NodeInfo>();
-        Debug.Log($"🔍 Building node map from {allNodes.Length} nodes...");
 
         foreach (NodeInfo node in allNodes)
         {
@@ -109,41 +111,6 @@ public class CarController : MonoBehaviour
             {
                 nodeMap[detailedKey] = node;
             }
-            else
-            {
-                Debug.LogWarning($"⚠️ Duplicate node at {detailedKey}: {node.name}");
-            }
-        }
-
-        Debug.Log($"📍 Node map built: {nodeMap.Count} unique nodes");
-
-        // Валидация карты нодов
-        ValidateNodeMap();
-    }
-
-    private void ValidateNodeMap()
-    {
-        int expectedNodes = mazeData.TotalCellsX * mazeData.TotalCellsZ;
-        if (nodeMap.Count != expectedNodes)
-        {
-            Debug.LogError($"❌ Node map validation failed: Expected {expectedNodes}, got {nodeMap.Count}");
-
-            // Поиск отсутствующих нодов
-            for (int x = 0; x < mazeData.TotalCellsX; x++)
-            {
-                for (int z = 0; z < mazeData.TotalCellsZ; z++)
-                {
-                    Vector2Int key = new Vector2Int(x, z);
-                    if (!nodeMap.ContainsKey(key))
-                    {
-                        Debug.LogWarning($"🔴 Missing node at global position: {key}");
-                    }
-                }
-            }
-        }
-        else
-        {
-            Debug.Log("✅ Node map validated successfully");
         }
     }
 
@@ -155,11 +122,9 @@ public class CarController : MonoBehaviour
         {
             currentNode = nodeMap[startKey];
             SpawnCarAtNode(currentNode);
-            Debug.Log($"🚗 Car spawned at start node: {startKey}");
         }
         else
         {
-            Debug.LogWarning($"Start node {startKey} not found. Looking for alternative...");
             FindAlternativeStartNode();
         }
     }
@@ -176,7 +141,6 @@ public class CarController : MonoBehaviour
             {
                 currentNode = pair.Value;
                 SpawnCarAtNode(currentNode);
-                Debug.Log($"🚗 Car spawned at alternative node: {pair.Key}");
                 return;
             }
         }
@@ -186,18 +150,14 @@ public class CarController : MonoBehaviour
         {
             currentNode = pair.Value;
             SpawnCarAtNode(currentNode);
-            Debug.Log($"🚗 Car spawned at random node: {pair.Key}");
             return;
         }
-
-        Debug.LogError("❌ No nodes found for car spawn!");
     }
 
     private void SpawnCarAtNode(NodeInfo node)
     {
         if (carPrefab == null)
         {
-            Debug.LogError("❌ Car prefab not assigned!");
             return;
         }
 
@@ -207,8 +167,6 @@ public class CarController : MonoBehaviour
 
         currentDirection = 0;
         UpdateCarRotationImmediate();
-
-        Debug.Log($"🎯 Car positioned at: Chunk({node.chunkX},{node.chunkZ}) Cell({node.cellX},{node.cellZ})");
     }
 
     private void HandleInput()
@@ -285,8 +243,6 @@ public class CarController : MonoBehaviour
         carInstance.transform.rotation = Quaternion.Euler(0f, targetAngle, 0f);
         currentDirection = targetDirection;
         isRotating = false;
-
-        Debug.Log($"🔄 Rotation completed. Direction: {GetDirectionName()}");
     }
 
     private void TryMoveInDirection(int direction)
@@ -301,9 +257,9 @@ public class CarController : MonoBehaviour
 
             currentMovementCoroutine = StartCoroutine(MoveToNodeCoroutine(nextNode));
         }
-        else
+        else if (logMovements)
         {
-            Debug.Log($"🚫 Movement {GetDirectionName(direction)} blocked by wall! Current: {GetCurrentGlobalPosition()}, Direction: {moveDirection}");
+            // Только логируем, не останавливаем игру
         }
     }
 
@@ -330,8 +286,6 @@ public class CarController : MonoBehaviour
         carInstance.transform.position = targetPosition;
         currentNode = targetNode;
         isMoving = false;
-
-        Debug.Log($"➡️ Moved to node: Chunk({currentNode.chunkX},{currentNode.chunkZ}) Cell({currentNode.cellX},{currentNode.cellZ})");
     }
 
     private NodeInfo GetNodeInDirection(Vector2Int direction)
@@ -344,7 +298,6 @@ public class CarController : MonoBehaviour
             return nodeMap[targetGlobal];
         }
 
-        Debug.LogWarning($"🔴 Node not found at global position: {targetGlobal}");
         return null;
     }
 
@@ -364,41 +317,30 @@ public class CarController : MonoBehaviour
         // Проверяем что целевая позиция существует
         if (!nodeMap.ContainsKey(targetGlobal))
         {
-            Debug.LogWarning($"🎯 Target position doesn't exist: {targetGlobal}");
             return false;
         }
 
-        // Проверяем стену с детальной отладкой асимметрии
+        // Проверяем стену без ошибок
         bool hasWall = mazeData.HasWallBetween(currentGlobal, targetGlobal);
-
-        // ДОПОЛНИТЕЛЬНАЯ ПРОВЕРКА: смотрим стены в обе стороны
-        bool wallForward = mazeData.CheckWallInDirection(currentGlobal, direction);
-        bool wallBackward = mazeData.CheckWallInDirection(targetGlobal, -direction);
-
-        if (wallForward != wallBackward)
-        {
-            Debug.LogError($"🚨 ASYMMETRIC WALL DETECTED!");
-            Debug.LogError($"   {currentGlobal} -> {targetGlobal}: Forward={wallForward}, Backward={wallBackward}");
-            Debug.LogError($"   This means the wall data is inconsistent!");
-
-            // Показываем все стены вокруг обеих точек
-            mazeData.DebugAllWallsAround(currentGlobal);
-            mazeData.DebugAllWallsAround(targetGlobal);
-        }
 
         if (hasWall)
         {
-            Debug.Log($"🚫 MOVEMENT BLOCKED: {currentGlobal} -> {targetGlobal}");
-            DrawDebugLine(currentGlobal, targetGlobal, Color.red);
+            if (showDebugLines)
+            {
+                DrawDebugLine(currentGlobal, targetGlobal, Color.red);
+            }
             return false;
         }
         else
         {
-            Debug.Log($"✅ MOVEMENT ALLOWED: {currentGlobal} -> {targetGlobal}");
-            DrawDebugLine(currentGlobal, targetGlobal, Color.green);
+            if (showDebugLines)
+            {
+                DrawDebugLine(currentGlobal, targetGlobal, Color.green);
+            }
             return true;
         }
     }
+
     private void DebugWallsAroundCar()
     {
         if (currentNode == null) return;
@@ -407,7 +349,6 @@ public class CarController : MonoBehaviour
 
         // Визуализация стен вокруг машинки
         Vector2Int[] directions = { Vector2Int.up, Vector2Int.right, Vector2Int.down, Vector2Int.left };
-        Color[] colors = { Color.blue, Color.cyan, Color.yellow, Color.magenta };
 
         for (int i = 0; i < directions.Length; i++)
         {
@@ -419,14 +360,6 @@ public class CarController : MonoBehaviour
                 Debug.DrawLine(GetWorldPosition(currentGlobal), GetWorldPosition(target), color, 0.1f);
             }
         }
-    }
-    private int GetDirectionFromVector(Vector2Int direction)
-    {
-        if (direction == Vector2Int.up) return 0;
-        if (direction == Vector2Int.right) return 1;
-        if (direction == Vector2Int.down) return 2;
-        if (direction == Vector2Int.left) return 3;
-        return 0;
     }
 
     private void DrawDebugLine(Vector2Int from, Vector2Int to, Color color)
@@ -444,6 +377,7 @@ public class CarController : MonoBehaviour
         }
         return Vector3.zero;
     }
+
     private void UpdateCarRotationImmediate()
     {
         if (carInstance == null) return;
@@ -471,8 +405,6 @@ public class CarController : MonoBehaviour
             carInstance.transform.position = newPosition;
             isMoving = false;
             isRotating = false;
-
-            Debug.Log($"Машинка телепортирована на нод: Чанк({node.chunkX},{node.chunkZ}) Ячейка({node.cellX},{node.cellZ})");
         }
     }
 
@@ -493,7 +425,7 @@ public class CarController : MonoBehaviour
 
     void OnDrawGizmos()
     {
-        if (currentNode != null && carInstance != null)
+        if (currentNode != null && carInstance != null && showDebugLines)
         {
             Gizmos.color = Color.green;
             Gizmos.DrawWireCube(currentNode.transform.position + Vector3.up * 0.5f, Vector3.one * 0.3f);
