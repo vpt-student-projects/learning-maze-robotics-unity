@@ -36,6 +36,7 @@ Transform:
   - {fileID: 1421389817393544675}
   - {fileID: 742642782076249025}
   - {fileID: 946885044956526922}
+  - {fileID: 684337825832780912}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &6888851664988285121
@@ -57,103 +58,105 @@ MonoBehaviour:
     enable360Lidar: 1
     lidar360Range: 20
     lidar360Points: 360
+    lidar360Results: []
     enable90Lidar: 0
     lidar90Range: 0
     lidar90Points: 0
     lidar90Angle: 0
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 0
-    singleLidarDirection: 0
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 0
   - name: Lidar90
     pointTransform: {fileID: 783366270731595231}
     enabled: 1
     enable360Lidar: 0
     lidar360Range: 0
     lidar360Points: 0
+    lidar360Results: []
     enable90Lidar: 1
     lidar90Range: 20
     lidar90Points: 90
     lidar90Angle: 90
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 0
-    singleLidarDirection: 0
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 0
   - name: LidarR
     pointTransform: {fileID: 5779875136614538645}
     enabled: 1
     enable360Lidar: 0
     lidar360Range: 0
     lidar360Points: 0
+    lidar360Results: []
     enable90Lidar: 0
     lidar90Range: 0
     lidar90Points: 0
     lidar90Angle: 0
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 20
-    singleLidarDirection: 1
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 1
   - name: LidarL
     pointTransform: {fileID: 2936421996986205957}
     enabled: 1
     enable360Lidar: 0
     lidar360Range: 0
     lidar360Points: 0
+    lidar360Results: []
     enable90Lidar: 0
     lidar90Range: 0
     lidar90Points: 0
     lidar90Angle: 0
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 20
-    singleLidarDirection: 3
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 3
   - name: LidarF
     pointTransform: {fileID: 2733945516753423176}
     enabled: 1
     enable360Lidar: 0
     lidar360Range: 0
     lidar360Points: 0
+    lidar360Results: []
     enable90Lidar: 0
     lidar90Range: 0
     lidar90Points: 0
     lidar90Angle: 0
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 20
-    singleLidarDirection: 0
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 0
   - name: LidarB
     pointTransform: {fileID: 5642694922942587151}
     enabled: 1
     enable360Lidar: 0
     lidar360Range: 0
     lidar360Points: 0
+    lidar360Results: []
     enable90Lidar: 0
     lidar90Range: 0
     lidar90Points: 0
     lidar90Angle: 0
+    lidar90Results: []
     enableSingleLidar: 1
     singleLidarRange: 20
-    singleLidarDirection: 2
-    lidar360Results: []
-    lidar90Results: []
     singleLidarResult: 0
+    singleLidarDirection: 2
   wallLayerMask:
     serializedVersion: 2
     m_Bits: 64
+  scanInterval: 0.1
   showDebugRays: 1
   debugColor360: {r: 0, g: 1, b: 1, a: 1}
   debugColor90: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   debugColorSingle: {r: 0, g: 1, b: 0, a: 1}
+  logWarnings: 1
 --- !u!1 &516337431307397707
 GameObject:
   m_ObjectHideFlags: 0
@@ -433,6 +436,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1927371224325747848}
   m_LocalEulerAnglesHint: {x: 0, y: -90, z: 0}
+--- !u!1 &2379434220557147286
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 684337825832780912}
+  m_Layer: 0
+  m_Name: LidarPoint_6
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &684337825832780912
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2379434220557147286}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 4250111321435526168}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2577546745454798699
 GameObject:
   m_ObjectHideFlags: 0

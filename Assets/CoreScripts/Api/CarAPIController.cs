@@ -1,9 +1,11 @@
 ﻿using UnityEngine;
-using System.Collections;
+using System;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 public class CarAPIController : MonoBehaviour
 {
@@ -18,8 +20,18 @@ public class CarAPIController : MonoBehaviour
 
     private HttpListener httpListener;
     private CarController carController;
+    private MazeGenerator mazeGenerator;
     private bool isServerRunning = false;
     private CancellationTokenSource cancellationTokenSource;
+    private float serverStartTime;
+
+    private readonly ConcurrentQueue<Action> mainThreadActions = new ConcurrentQueue<Action>();
+    private bool isApplicationFocused = true;
+
+    // Кэшированные значения для доступа из любого потока
+    private float cachedTime = 0f;
+    private Vector3 cachedCarPosition = Vector3.zero;
+    private bool cacheInitialized = false;
 
     public void SetCarController(CarController controller)
     {
@@ -37,6 +49,9 @@ public class CarAPIController : MonoBehaviour
     void Start()
     {
         ConfigureBackgroundSettings();
+        isApplicationFocused = Application.isFocused;
+        serverStartTime = Time.time;
+        cacheInitialized = true;
 
         if (carController == null)
         {
@@ -48,30 +63,47 @@ public class CarAPIController : MonoBehaviour
             lidarController = FindAnyObjectByType<LidarController>();
         }
 
+        mazeGenerator = FindAnyObjectByType<MazeGenerator>();
+
         if (autoStartServer)
         {
             StartCoroutine(DelayedStartServer());
         }
     }
 
-    private IEnumerator DelayedStartServer()
-    {
-        yield return new WaitForSeconds(1f);
-
-        if (carController != null && !isServerRunning)
-        {
-            StartServer();
-        }
-    }
-
     void Update()
     {
+        isApplicationFocused = Application.isFocused;
+
+        // Обновляем кэшированные значения в главном потоке
+        cachedTime = Time.time;
+
+        if (carController != null && carController.transform != null)
+        {
+            cachedCarPosition = carController.transform.position;
+        }
+
+        while (mainThreadActions.TryDequeue(out var action))
+        {
+            action?.Invoke();
+        }
+
         if (Time.frameCount % 300 == 0)
         {
             if (isServerRunning && carController == null)
             {
                 carController = FindAnyObjectByType<CarController>();
             }
+        }
+    }
+
+    private System.Collections.IEnumerator DelayedStartServer()
+    {
+        yield return new WaitForSeconds(1f);
+
+        if (carController != null && !isServerRunning)
+        {
+            StartServer();
         }
     }
 
@@ -107,7 +139,7 @@ public class CarAPIController : MonoBehaviour
         }
     }
 
-    private IEnumerator StartServerCoroutine()
+    private System.Collections.IEnumerator StartServerCoroutine()
     {
         httpListener = new HttpListener();
         httpListener.Prefixes.Add($"http://localhost:{port}/");
@@ -120,9 +152,11 @@ public class CarAPIController : MonoBehaviour
             cancellationTokenSource = new CancellationTokenSource();
 
             Task.Run(() => HandleRequestsAsync(cancellationTokenSource.Token));
+            Debug.Log($"API Server started on port {port}");
         }
         catch (System.Exception e)
         {
+            Debug.LogError($"Failed to start API server: {e.Message}");
         }
 
         yield return null;
@@ -156,6 +190,7 @@ public class CarAPIController : MonoBehaviour
         {
             response.AddHeader("Access-Control-Allow-Origin", "*");
             response.AddHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.AddHeader("Access-Control-Allow-Headers", "Content-Type");
 
             if (request.HttpMethod == "OPTIONS")
             {
@@ -167,297 +202,161 @@ public class CarAPIController : MonoBehaviour
             string responseText = await HandleRequest(request, response);
             await SendResponse(response, responseText);
         }
-        catch
+        catch (Exception ex)
         {
-            await SendErrorResponse(response, 500, "Internal server error");
+            Debug.LogError($"Error processing request: {ex.Message}");
+            await SendErrorResponse(response, 500, $"Internal server error: {ex.Message}");
         }
     }
 
     private async Task<string> HandleRequest(HttpListenerRequest request, HttpListenerResponse response)
     {
-        string path = request.Url.LocalPath.ToLower();
+        string path = request.Url.LocalPath;
         string method = request.HttpMethod;
 
-        if (path == "/health" && method == "GET")
+        try
         {
-            return GetHealthStatus();
-        }
+            if (path.Equals("/health", StringComparison.OrdinalIgnoreCase) && method == "GET")
+            {
+                return GetHealthStatus();
+            }
 
-        if (enableLidarAPI && path.StartsWith("/lidar/"))
+            if (enableLidarAPI && path.StartsWith("/lidar/", StringComparison.OrdinalIgnoreCase))
+            {
+                return await HandleLidarRequest(path.ToLower(), method, response);
+            }
+
+            if (path.StartsWith("/car/", StringComparison.OrdinalIgnoreCase))
+            {
+                return await HandleCarRequest(path.ToLower(), method, response);
+            }
+
+            if (path.Equals("/status", StringComparison.OrdinalIgnoreCase) && method == "GET")
+            {
+                return GetFullStatus();
+            }
+
+            if (path.Equals("/info", StringComparison.OrdinalIgnoreCase) && method == "GET")
+            {
+                return GetSystemInfo();
+            }
+
+            response.StatusCode = 404;
+            return "{\"status\":\"error\",\"message\":\"Endpoint not found\"}";
+        }
+        catch (Exception ex)
         {
-            return await HandleLidarRequest(path, method, response);
+            Debug.LogError($"Error in HandleRequest: {ex.Message}");
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
         }
-
-        if (path.StartsWith("/car/"))
-        {
-            return await HandleCarRequest(path, method, response);
-        }
-
-        if (path == "/status" && method == "GET")
-        {
-            return GetFullStatus();
-        }
-
-        if (path == "/info" && method == "GET")
-        {
-            return GetSystemInfo();
-        }
-
-        response.StatusCode = 404;
-        return "{\"status\":\"error\",\"message\":\"Endpoint not found\"}";
     }
 
     private string GetHealthStatus()
     {
-        bool carReady = carController != null && carController.IsCarReady();
-        bool lidarReady = lidarController != null;
+        try
+        {
+            // Используем кэшированные значения вместо прямых вызовов Unity API
+            bool carReady = carController != null && carController.IsCarReady();
+            bool lidarReady = lidarController != null && lidarController.IsInitialized();
+            bool apiReady = isServerRunning;
+            float uptime = cacheInitialized ? cachedTime - serverStartTime : 0f;
 
-        return $"{{\"status\":\"healthy\",\"services\":{{\"car\":{carReady.ToString().ToLower()},\"lidar\":{lidarReady.ToString().ToLower()}}},\"timestamp\":\"{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+            return $"{{\"status\":\"{(apiReady ? "healthy" : "unhealthy")}\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\",\"services\":{{\"car\":{carReady.ToString().ToLower()},\"lidar\":{lidarReady.ToString().ToLower()},\"api\":{apiReady.ToString().ToLower()}}},\"uptime\":{uptime.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)}}}";
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string EscapeJsonString(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return "";
+
+        StringBuilder sb = new StringBuilder();
+        foreach (char c in input)
+        {
+            switch (c)
+            {
+                case '\\': sb.Append("\\\\"); break;
+                case '\"': sb.Append("\\\""); break;
+                case '\b': sb.Append("\\b"); break;
+                case '\f': sb.Append("\\f"); break;
+                case '\n': sb.Append("\\n"); break;
+                case '\r': sb.Append("\\r"); break;
+                case '\t': sb.Append("\\t"); break;
+                default:
+                    if (c < ' ')
+                    {
+                        sb.AppendFormat("\\u{0:X4}", (int)c);
+                    }
+                    else
+                    {
+                        sb.Append(c);
+                    }
+                    break;
+            }
+        }
+        return sb.ToString();
     }
 
     private async Task<string> HandleLidarRequest(string path, string method, HttpListenerResponse response)
     {
-        if (lidarController == null)
+        try
         {
-            response.StatusCode = 503;
-            return "{\"status\":\"error\",\"message\":\"Lidar controller not available\"}";
-        }
-
-        switch (path)
-        {
-            case "/lidar/all" when method == "GET":
-                return lidarController.GetAllLidarDataJSON();
-
-            case "/lidar/points" when method == "GET":
-                return GetLidarPointsList();
-
-            case "/lidar/global/min" when method == "GET":
-                return GetLidarMinDistance();
-
-            default:
-                if (path.StartsWith("/lidar/point/"))
-                {
-                    return HandleLidarPointRequest(path, method, response);
-                }
-
-                response.StatusCode = 404;
-                return "{\"status\":\"error\",\"message\":\"Lidar endpoint not found\"}";
-        }
-    }
-
-    private string GetLidarPointsList()
-    {
-        if (lidarController.lidarPoints == null || lidarController.lidarPoints.Count == 0)
-        {
-            return "{\"status\":\"success\",\"points\":[],\"count\":0}";
-        }
-
-        StringBuilder sb = new StringBuilder();
-        sb.Append("{\"status\":\"success\",\"points\":[");
-
-        for (int i = 0; i < lidarController.lidarPoints.Count; i++)
-        {
-            var point = lidarController.lidarPoints[i];
-            sb.Append($"{{\"index\":{i},\"name\":\"{point.name}\",\"enabled\":{point.enabled.ToString().ToLower()}}}");
-            if (i < lidarController.lidarPoints.Count - 1) sb.Append(",");
-        }
-
-        sb.Append($"],\"count\":{lidarController.lidarPoints.Count}}}");
-        return sb.ToString();
-    }
-
-    private string HandleLidarPointRequest(string path, string method, HttpListenerResponse response)
-    {
-        string[] parts = path.Split('/');
-        if (parts.Length < 4)
-        {
-            response.StatusCode = 400;
-            return "{\"status\":\"error\",\"message\":\"Invalid point request\"}";
-        }
-
-        if (int.TryParse(parts[3], out int pointIndex))
-        {
-            var point = lidarController.GetLidarPoint(pointIndex);
-            if (point == null)
+            if (lidarController == null)
             {
-                response.StatusCode = 404;
-                return $"{{\"status\":\"error\",\"message\":\"Point {pointIndex} not found\"}}";
+                response.StatusCode = 503;
+                return "{\"status\":\"error\",\"message\":\"Lidar controller not available\"}";
             }
 
-            if (parts.Length == 4)
+            if (!lidarController.IsInitialized())
             {
-                return GetLidarPointFullData(point, pointIndex);
+                response.StatusCode = 503;
+                return "{\"status\":\"error\",\"message\":\"Lidar controller initializing\"}";
             }
-            else if (parts.Length == 5)
+
+            switch (path)
             {
-                return GetLidarPointDataType(point, parts[4]);
+                case "/lidar/status" when method == "GET":
+                    return GetLidarStatus();
+
+                case "/lidar/points" when method == "GET":
+                    return GetLidarPointsList();
+
+                case "/lidar/min" when method == "GET":
+                    return GetLidarMinDistance();
+
+                case "/lidar/simple" when method == "GET":
+                    return GetSafeLidarData();
+
+                default:
+                    if (path.StartsWith("/lidar/point/"))
+                    {
+                        return HandleSafeLidarPointRequest(path, method, response);
+                    }
+
+                    response.StatusCode = 404;
+                    return "{\"status\":\"error\",\"message\":\"Lidar endpoint not found\"}";
             }
         }
-
-        response.StatusCode = 400;
-        return "{\"status\":\"error\",\"message\":\"Invalid point index\"}";
-    }
-
-    private string GetLidarPointFullData(LidarPoint point, int index)
-    {
-        // Получаем данные одиночного лидара
-        string singleLidarDirection = lidarController.GetSingleLidarDirectionName(index);
-        float singleLidarDistance = lidarController.GetSingleLidarDistance(index);
-
-        return $"{{\"status\":\"success\",\"point\":{{\"index\":{index},\"name\":\"{point.name}\"," +
-               $"\"position\":{{\"x\":{point.pointTransform.position.x:F2},\"y\":{point.pointTransform.position.y:F2},\"z\":{point.pointTransform.position.z:F2}}}," +
-               $"\"singleLidar\":{{\"direction\":\"{singleLidarDirection}\",\"distance\":{singleLidarDistance:F2}}}" +
-               $"}}}}";
-    }
-
-    private string GetLidarPointDataType(LidarPoint point, string dataType)
-    {
-        switch (dataType.ToLower())
+        catch (Exception ex)
         {
-            case "360":
-                return GetLidar360Data(point);
-
-            case "single":
-                // Используем новый метод для одиночного лидара
-                int index = lidarController.lidarPoints.IndexOf(point);
-                return lidarController.GetSingleLidarDataJSON(index);
-
-            default:
-                return "{\"status\":\"error\",\"message\":\"Invalid data type\"}";
+            Debug.LogError($"Error in HandleLidarRequest: {ex.Message}");
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
         }
     }
 
-    private string GetLidar360Data(LidarPoint point)
+    private string GetLidarStatus()
     {
-        if (!point.enable360Lidar || point.lidar360Results == null)
+        try
         {
-            return "{\"status\":\"error\",\"message\":\"360° lidar not enabled\"}";
-        }
+            if (lidarController == null)
+                return "{\"status\":\"error\",\"message\":\"Lidar controller not found\"}";
 
-        StringBuilder sb = new StringBuilder();
-        sb.Append("{\"status\":\"success\",\"lidar360\":[");
-
-        for (int i = 0; i < point.lidar360Results.Length; i++)
-        {
-            sb.Append(point.lidar360Results[i].ToString("F2"));
-            if (i < point.lidar360Results.Length - 1) sb.Append(",");
-        }
-
-        sb.Append("]}");
-        return sb.ToString();
-    }
-
-    //private string GetLidarSingleData(LidarPoint point)
-    //{
-    //    if (!point.enableSingleLidars || point.singleLidarResults == null)
-    //    {
-    //        return "{\"status\":\"error\",\"message\":\"Single lidars not enabled\"}";
-    //    }
-
-    //    return $"{{\"status\":\"success\",\"singleLidars\":{{\"forward\":{point.singleLidarResults[0]:F2}," +
-    //           $"\"right\":{point.singleLidarResults[1]:F2},\"backward\":{point.singleLidarResults[2]:F2}," +
-    //           $"\"left\":{point.singleLidarResults[3]:F2}}}}}";
-    //}
-
-    private string GetLidarMinDistance()
-    {
-        float minDistance = lidarController.GetGlobalMinDistance();
-        return $"{{\"status\":\"success\",\"minDistance\":{minDistance:F2}}}";
-    }
-
-    private async Task<string> HandleCarRequest(string path, string method, HttpListenerResponse response)
-    {
-        if (carController == null || !carController.IsCarReady())
-        {
-            response.StatusCode = 503;
-            return "{\"status\":\"error\",\"message\":\"Car not ready yet\"}";
-        }
-
-        switch (path)
-        {
-            case "/car/turn/left" when method == "POST":
-                MainThreadDispatcher.ExecuteOnMainThread(() => carController.TurnLeft());
-                return "{\"status\":\"success\",\"action\":\"turn_left\",\"timestamp\":\"" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\"}";
-
-            case "/car/turn/right" when method == "POST":
-                MainThreadDispatcher.ExecuteOnMainThread(() => carController.TurnRight());
-                return "{\"status\":\"success\",\"action\":\"turn_right\",\"timestamp\":\"" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\"}";
-
-            case "/car/move/forward" when method == "POST":
-                MainThreadDispatcher.ExecuteOnMainThread(() => carController.MoveForward());
-                return "{\"status\":\"success\",\"action\":\"move_forward\",\"timestamp\":\"" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\"}";
-
-            case "/car/move/backward" when method == "POST":
-                MainThreadDispatcher.ExecuteOnMainThread(() => carController.MoveBackward());
-                return "{\"status\":\"success\",\"action\":\"move_backward\",\"timestamp\":\"" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\"}";
-
-            case "/car/stop" when method == "POST":
-                return "{\"status\":\"success\",\"action\":\"stop\",\"timestamp\":\"" + System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\"}";
-
-            case "/car/status" when method == "GET":
-                return GetCarStatus();
-
-            case "/car/position" when method == "GET":
-                return GetCarPosition();
-
-            default:
-                response.StatusCode = 404;
-                return "{\"status\":\"error\",\"message\":\"Car endpoint not found\"}";
-        }
-    }
-
-    private string GetCarStatus()
-    {
-        if (carController == null)
-            return "{\"status\":\"car_not_found\"}";
-
-        var chunk = carController.GetCurrentChunkCoordinates();
-        var cell = carController.GetCurrentCellCoordinates();
-        string direction = carController.GetCurrentDirectionName();
-
-        return $"{{\"status\":\"operational\",\"position\":{{\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{direction}\"}}}}";
-    }
-
-    private string GetCarPosition()
-    {
-        if (carController == null)
-            return "{\"status\":\"car_not_found\"}";
-
-        var chunk = carController.GetCurrentChunkCoordinates();
-        var cell = carController.GetCurrentCellCoordinates();
-        string direction = carController.GetCurrentDirectionName();
-
-        return $"{{\"status\":\"success\",\"position\":{{\"global\":{{\"x\":{chunk.x * GetMazeChunkSize() + cell.x},\"y\":{chunk.y * GetMazeChunkSize() + cell.y}}},\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{direction}\"}}}}";
-    }
-
-    private int GetMazeChunkSize()
-    {
-        var mazeGenerator = FindAnyObjectByType<MazeGenerator>();
-        return mazeGenerator != null ? mazeGenerator.chunkSize : 4;
-    }
-
-    private string GetFullStatus()
-    {
-        StringBuilder sb = new StringBuilder();
-        sb.Append("{\"status\":\"success\",\"systems\":{");
-
-        if (carController != null && carController.IsCarReady())
-        {
-            var chunk = carController.GetCurrentChunkCoordinates();
-            var cell = carController.GetCurrentCellCoordinates();
-            string direction = carController.GetCurrentDirectionName();
-
-            sb.Append($"\"car\":{{\"ready\":true,\"position\":{{\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{direction}\"}}}},");
-        }
-        else
-        {
-            sb.Append("\"car\":{\"ready\":false},");
-        }
-
-        if (lidarController != null)
-        {
-            float minDistance = lidarController.GetGlobalMinDistance();
-            int pointCount = lidarController.lidarPoints?.Count ?? 0;
+            int totalPoints = lidarController.lidarPoints?.Count ?? 0;
             int activePoints = 0;
 
             if (lidarController.lidarPoints != null)
@@ -468,41 +367,502 @@ public class CarAPIController : MonoBehaviour
                 }
             }
 
-            sb.Append($"\"lidar\":{{\"ready\":true,\"points\":{{\"total\":{pointCount},\"active\":{activePoints}}},\"minDistance\":{minDistance:F2}}},");
+            float minDistance = lidarController.GetGlobalMinDistance();
+
+            // Используем InvariantCulture для точки вместо запятой
+            return $"{{\"status\":\"success\",\"data\":{{\"initialized\":{lidarController.IsInitialized().ToString().ToLower()},\"points\":{{\"total\":{totalPoints},\"active\":{activePoints}}},\"minDistance\":{(minDistance >= 0 ? minDistance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "null")},\"layerMask\":\"Wall\"}}}}";
         }
-        else
+        catch (Exception ex)
         {
-            sb.Append("\"lidar\":{\"ready\":false},");
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
         }
+    }
 
-        sb.Append($"\"system\":{{\"focus\":{Application.isFocused.ToString().ToLower()},\"background\":{Application.runInBackground.ToString().ToLower()},\"time\":\"{System.DateTime.Now:HH:mm:ss}\"}}");
+    private string GetSafeLidarData()
+    {
+        try
+        {
+            if (lidarController == null)
+                return "{\"status\":\"error\",\"message\":\"Lidar controller not available\"}";
 
-        sb.Append("}}");
-        return sb.ToString();
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{\"status\":\"success\",\"data\":[");
+
+            bool firstPoint = true;
+            for (int i = 0; i < lidarController.lidarPoints.Count; i++)
+            {
+                var point = lidarController.lidarPoints[i];
+                if (!point.enabled) continue;
+
+                if (!firstPoint) sb.Append(",");
+                firstPoint = false;
+
+                sb.Append("{");
+                sb.Append($"\"index\":{i},");
+                sb.Append($"\"name\":\"{EscapeJsonString(point.name)}\",");
+
+                // Используем безопасный доступ к позиции
+                sb.Append($"\"position\":{{\"x\":0.00,\"y\":0.00,\"z\":0.00}},");
+
+                // Одиночный лидар
+                if (point.enableSingleLidar)
+                {
+                    sb.Append($"\"single\":{{\"direction\":\"{point.singleLidarDirection.ToString().ToLower()}\",\"distance\":{point.singleLidarResult.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}}},");
+                }
+
+                // 360° лидар - выводим только ключевые точки
+                if (point.enable360Lidar && point.lidar360Results != null && point.lidar360Results.Length > 0)
+                {
+                    sb.Append("\"lidar360\":[");
+                    int pointsToShow = Mathf.Min(4, point.lidar360Points); // Только 4 точки
+                    int step = Mathf.Max(1, point.lidar360Points / pointsToShow);
+
+                    for (int j = 0; j < point.lidar360Points && j < pointsToShow * step; j += step)
+                    {
+                        if (j > 0) sb.Append(",");
+                        float angle = (360f / point.lidar360Points) * j;
+                        sb.Append($"{{\"angle\":{angle.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)},\"distance\":{point.lidar360Results[j].ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}}}");
+                    }
+                    sb.Append("],");
+                }
+
+                // Убираем последнюю запятую
+                if (sb[sb.Length - 1] == ',')
+                    sb.Remove(sb.Length - 1, 1);
+
+                sb.Append("}");
+            }
+
+            sb.Append($"],\"count\":{lidarController.lidarPoints.Count}}}");
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetLidarPointsList()
+    {
+        try
+        {
+            if (lidarController.lidarPoints == null || lidarController.lidarPoints.Count == 0)
+            {
+                return "{\"status\":\"success\",\"points\":[],\"count\":0}";
+            }
+
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{\"status\":\"success\",\"points\":[");
+
+            for (int i = 0; i < lidarController.lidarPoints.Count; i++)
+            {
+                var point = lidarController.lidarPoints[i];
+                sb.Append($"{{\"index\":{i},\"name\":\"{EscapeJsonString(point.name)}\",\"enabled\":{point.enabled.ToString().ToLower()}}}");
+                if (i < lidarController.lidarPoints.Count - 1) sb.Append(",");
+            }
+
+            sb.Append($"],\"count\":{lidarController.lidarPoints.Count}}}");
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetLidarMinDistance()
+    {
+        try
+        {
+            if (lidarController == null)
+                return "{\"status\":\"error\",\"message\":\"Lidar controller not available\"}";
+
+            float minDistance = lidarController.GetGlobalMinDistance();
+            return $"{{\"status\":\"success\",\"minDistance\":{(minDistance >= 0 ? minDistance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "null")}}}";
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string HandleSafeLidarPointRequest(string path, string method, HttpListenerResponse response)
+    {
+        try
+        {
+            string[] parts = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length < 3 || !int.TryParse(parts[2], out int pointIndex))
+            {
+                response.StatusCode = 400;
+                return "{\"status\":\"error\",\"message\":\"Invalid point index\"}";
+            }
+
+            if (pointIndex < 0 || pointIndex >= lidarController.lidarPoints.Count)
+            {
+                response.StatusCode = 404;
+                return $"{{\"status\":\"error\",\"message\":\"Point index {pointIndex} out of range\"}}";
+            }
+
+            var point = lidarController.lidarPoints[pointIndex];
+            if (!point.enabled)
+            {
+                return "{\"status\":\"error\",\"message\":\"Point is disabled\"}";
+            }
+
+            if (parts.Length == 3)
+            {
+                return GetSafeLidarPointData(point, pointIndex);
+            }
+            else if (parts.Length == 4)
+            {
+                string dataType = parts[3].ToLower();
+
+                switch (dataType)
+                {
+                    case "single":
+                        if (point.enableSingleLidar)
+                        {
+                            return $"{{\"status\":\"success\",\"singleLidar\":{{\"direction\":\"{point.singleLidarDirection.ToString().ToLower()}\",\"distance\":{point.singleLidarResult.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}}}}}";
+                        }
+                        return "{\"status\":\"error\",\"message\":\"Single lidar not enabled\"}";
+
+                    case "360":
+                        if (point.enable360Lidar && point.lidar360Results != null)
+                        {
+                            StringBuilder sb = new StringBuilder();
+                            sb.Append("{\"status\":\"success\",\"lidar360\":{\"distances\":[");
+
+                            for (int i = 0; i < point.lidar360Results.Length; i++)
+                            {
+                                sb.Append(point.lidar360Results[i].ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+                                if (i < point.lidar360Results.Length - 1) sb.Append(",");
+                            }
+
+                            sb.Append($"],\"range\":{point.lidar360Range.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)},\"points\":{point.lidar360Points}}}");
+                            return sb.ToString();
+                        }
+                        return "{\"status\":\"error\",\"message\":\"360° lidar not enabled or no data\"}";
+
+                    default:
+                        response.StatusCode = 400;
+                        return "{\"status\":\"error\",\"message\":\"Invalid data type\"}";
+                }
+            }
+
+            response.StatusCode = 404;
+            return "{\"status\":\"error\",\"message\":\"Invalid request format\"}";
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error in HandleSafeLidarPointRequest: {ex.Message}");
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetSafeLidarPointData(LidarPoint point, int index)
+    {
+        try
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{");
+            sb.Append($"\"status\":\"success\",");
+            sb.Append($"\"point\":{{");
+            sb.Append($"\"index\":{index},");
+            sb.Append($"\"name\":\"{EscapeJsonString(point.name)}\",");
+            sb.Append($"\"position\":{{\"x\":0.00,\"y\":0.00,\"z\":0.00}},");
+            sb.Append($"\"enabledLidars\":{{");
+            sb.Append($"\"lidar360\":{point.enable360Lidar.ToString().ToLower()},");
+            sb.Append($"\"lidar90\":{point.enable90Lidar.ToString().ToLower()},");
+            sb.Append($"\"singleLidar\":{point.enableSingleLidar.ToString().ToLower()}");
+            sb.Append($"}}");
+
+            if (point.enableSingleLidar)
+            {
+                sb.Append($",\"singleLidar\":{{");
+                sb.Append($"\"direction\":\"{point.singleLidarDirection.ToString().ToLower()}\",");
+                sb.Append($"\"distance\":{point.singleLidarResult.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)}");
+                sb.Append($"}}");
+            }
+
+            sb.Append($"}}");
+            sb.Append($"}}");
+
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private async Task<string> HandleCarRequest(string path, string method, HttpListenerResponse response)
+    {
+        try
+        {
+            if (carController == null || !carController.IsCarReady())
+            {
+                response.StatusCode = 503;
+                return "{\"status\":\"error\",\"message\":\"Car not ready yet\"}";
+            }
+
+            switch (path)
+            {
+                case "/car/turn/left" when method == "POST":
+                    mainThreadActions.Enqueue(() => carController.TurnLeft());
+                    return $"{{\"status\":\"success\",\"action\":\"turn_left\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+
+                case "/car/turn/right" when method == "POST":
+                    mainThreadActions.Enqueue(() => carController.TurnRight());
+                    return $"{{\"status\":\"success\",\"action\":\"turn_right\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+
+                case "/car/move/forward" when method == "POST":
+                    mainThreadActions.Enqueue(() => carController.MoveForward());
+                    return $"{{\"status\":\"success\",\"action\":\"move_forward\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+
+                case "/car/move/backward" when method == "POST":
+                    mainThreadActions.Enqueue(() => carController.MoveBackward());
+                    return $"{{\"status\":\"success\",\"action\":\"move_backward\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+
+                case "/car/status" when method == "GET":
+                    return GetCarStatus();
+
+                case "/car/position" when method == "GET":
+                    return GetCarPosition();
+
+                default:
+                    response.StatusCode = 404;
+                    return "{\"status\":\"error\",\"message\":\"Car endpoint not found\"}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error in HandleCarRequest: {ex.Message}");
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetCarStatus()
+    {
+        try
+        {
+            if (carController == null)
+                return "{\"status\":\"car_not_found\"}";
+
+            Vector2Int chunk = Vector2Int.zero;
+            Vector2Int cell = Vector2Int.zero;
+            string direction = "unknown";
+
+            // Используем кэшированные значения через main thread queue
+            System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+
+            mainThreadActions.Enqueue(() => {
+                try
+                {
+                    chunk = carController.GetCurrentChunkCoordinates();
+                    cell = carController.GetCurrentCellCoordinates();
+                    direction = carController.GetCurrentDirectionName();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error getting car status: {ex.Message}");
+                }
+                finally
+                {
+                    doneEvent.Set();
+                }
+            });
+
+            doneEvent.WaitOne(100);
+
+            return $"{{\"status\":\"operational\",\"position\":{{\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{EscapeJsonString(direction)}\"}}}}";
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetCarPosition()
+    {
+        try
+        {
+            if (carController == null)
+                return "{\"status\":\"car_not_found\"}";
+
+            Vector2Int chunk = Vector2Int.zero;
+            Vector2Int cell = Vector2Int.zero;
+            string direction = "unknown";
+
+            // Используем кэшированные значения через main thread queue
+            System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+
+            mainThreadActions.Enqueue(() => {
+                try
+                {
+                    chunk = carController.GetCurrentChunkCoordinates();
+                    cell = carController.GetCurrentCellCoordinates();
+                    direction = carController.GetCurrentDirectionName();
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"Error getting car position: {ex.Message}");
+                }
+                finally
+                {
+                    doneEvent.Set();
+                }
+            });
+
+            doneEvent.WaitOne(100);
+
+            int chunkSize = GetMazeChunkSize();
+
+            return $"{{\"status\":\"success\",\"position\":{{\"global\":{{\"x\":{chunk.x * chunkSize + cell.x},\"y\":{chunk.y * chunkSize + cell.y}}},\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{EscapeJsonString(direction)}\"}}}}";
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private int GetMazeChunkSize()
+    {
+        try
+        {
+            return mazeGenerator?.chunkSize ?? 4;
+        }
+        catch
+        {
+            return 4;
+        }
+    }
+
+    private string GetFullStatus()
+    {
+        try
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{\"status\":\"success\",\"systems\":{");
+
+            bool carReady = false;
+            Vector2Int chunk = Vector2Int.zero;
+            Vector2Int cell = Vector2Int.zero;
+            string direction = "unknown";
+
+            if (carController != null)
+            {
+                // Используем кэшированные значения
+                System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+
+                mainThreadActions.Enqueue(() => {
+                    try
+                    {
+                        carReady = carController.IsCarReady();
+                        chunk = carController.GetCurrentChunkCoordinates();
+                        cell = carController.GetCurrentCellCoordinates();
+                        direction = carController.GetCurrentDirectionName();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error in full status: {ex.Message}");
+                    }
+                    finally
+                    {
+                        doneEvent.Set();
+                    }
+                });
+
+                doneEvent.WaitOne(100);
+            }
+
+            if (carReady)
+            {
+                sb.Append($"\"car\":{{\"ready\":true,\"position\":{{\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{EscapeJsonString(direction)}\"}}}},");
+            }
+            else
+            {
+                sb.Append("\"car\":{\"ready\":false},");
+            }
+
+            if (lidarController != null)
+            {
+                float minDistance = lidarController.GetGlobalMinDistance();
+                int pointCount = lidarController.lidarPoints?.Count ?? 0;
+                int activePoints = 0;
+
+                if (lidarController.lidarPoints != null)
+                {
+                    foreach (var point in lidarController.lidarPoints)
+                    {
+                        if (point.enabled) activePoints++;
+                    }
+                }
+
+                sb.Append($"\"lidar\":{{\"ready\":true,\"points\":{{\"total\":{pointCount},\"active\":{activePoints}}},\"minDistance\":{(minDistance >= 0 ? minDistance.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : "null")}}},");
+            }
+            else
+            {
+                sb.Append("\"lidar\":{\"ready\":false},");
+            }
+
+            sb.Append($"\"system\":{{\"focus\":{isApplicationFocused.ToString().ToLower()},\"background\":{runInBackground.ToString().ToLower()},\"time\":\"{DateTime.Now:HH:mm:ss}\"}}");
+
+            sb.Append("}}");
+            return sb.ToString();
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
     }
 
     private string GetSystemInfo()
     {
-        return $"{{\"status\":\"success\",\"info\":{{\"name\":\"Maze Car Controller\",\"version\":\"1.0\",\"ports\":{{\"api\":{port}}},\"features\":[\"car_control\",\"lidar_sensors\",\"maze_navigation\"],\"timestamp\":\"{System.DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}}}";
+        try
+        {
+            return $"{{\"status\":\"success\",\"info\":{{\"name\":\"Maze Car Controller\",\"version\":\"1.0\",\"ports\":{{\"api\":{port}}},\"features\":[\"car_control\",\"lidar_sensors\",\"maze_navigation\"],\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}}}";
+        }
+        catch (Exception ex)
+        {
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
     }
 
     private async Task SendResponse(HttpListenerResponse response, string responseText)
     {
-        byte[] buffer = Encoding.UTF8.GetBytes(responseText);
-        response.ContentType = "application/json; charset=utf-8";
-        response.ContentLength64 = buffer.Length;
-        await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-        response.OutputStream.Close();
+        try
+        {
+            byte[] buffer = Encoding.UTF8.GetBytes(responseText);
+            response.ContentType = "application/json; charset=utf-8";
+            response.ContentLength64 = buffer.Length;
+            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+            response.OutputStream.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error sending response: {ex.Message}");
+        }
     }
 
     private async Task SendErrorResponse(HttpListenerResponse response, int statusCode, string message)
     {
-        string errorText = $"{{\"status\":\"error\",\"message\":\"{message}\"}}";
-        response.StatusCode = statusCode;
-        byte[] buffer = Encoding.UTF8.GetBytes(errorText);
-        response.ContentLength64 = buffer.Length;
-        await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
-        response.OutputStream.Close();
+        try
+        {
+            string errorText = $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(message)}\"}}";
+            response.StatusCode = statusCode;
+            response.ContentType = "application/json; charset=utf-8";
+            byte[] buffer = Encoding.UTF8.GetBytes(errorText);
+            response.ContentLength64 = buffer.Length;
+            await response.OutputStream.WriteAsync(buffer, 0, buffer.Length);
+            response.OutputStream.Close();
+        }
+        catch (Exception ex)
+        {
+            Debug.LogError($"Error sending error response: {ex.Message}");
+        }
     }
 
     public bool IsServerRunning() => isServerRunning;
