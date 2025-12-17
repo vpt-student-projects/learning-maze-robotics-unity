@@ -26,7 +26,7 @@ public class CarController : MonoBehaviour
     private NodeInfo currentNode;
     private NodeInfo targetNode;
     private Vector3 targetPosition;
-    private bool isMoving = false;
+    public bool isMoving = false;
     private bool isRotating = false;
     private bool isInitialized = false;
 
@@ -648,6 +648,24 @@ public class CarController : MonoBehaviour
     public string GetCurrentDirectionName()
     {
         return GetDirectionName();
+    }
+    public bool CheckWallAhead()
+    {
+        // Используй существующую логику из CanMoveToDirection
+        Vector2Int direction = directionVectors[currentDirection];
+        return !CanMoveToDirection(direction);
+    }
+
+    public bool CheckWallLeft()
+    {
+        Vector2Int direction = directionVectors[(currentDirection + 3) % 4]; // Поворот налево
+        return !CanMoveToDirection(direction);
+    }
+
+    public bool CheckWallRight()
+    {
+        Vector2Int direction = directionVectors[(currentDirection + 1) % 4]; // Поворот направо
+        return !CanMoveToDirection(direction);
     }
 
     void OnDrawGizmos()
