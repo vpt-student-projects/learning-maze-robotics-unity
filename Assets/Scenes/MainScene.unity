@@ -6933,7 +6933,7 @@ MonoBehaviour:
   isDraggable: 1
   snapToGrid: 0
   gridSize: 50
-  constrainToParent: 1
+  constrainToParent: 0
   dragAlpha: 0.7
   targetDropZone: {fileID: 0}
   cloneParent: {fileID: 0}
@@ -8083,7 +8083,7 @@ MonoBehaviour:
   isDraggable: 1
   snapToGrid: 0
   gridSize: 50
-  constrainToParent: 1
+  constrainToParent: 0
   dragAlpha: 0.7
   targetDropZone: {fileID: 0}
   cloneParent: {fileID: 0}
