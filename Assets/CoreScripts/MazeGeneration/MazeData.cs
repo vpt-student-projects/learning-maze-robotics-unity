@@ -9,14 +9,17 @@ public class MazeData
     public Vector2Int StartGenerationChunk { get; private set; }
     public Vector2Int StartGenerationCell { get; private set; }
     public List<Vector2Int> StartGenerationCells { get; private set; }
+    public int Seed { get; private set; } // Добавлен Seed
 
     public int TotalCellsX => MazeSizeInChunks.x * ChunkSize;
     public int TotalCellsZ => MazeSizeInChunks.y * ChunkSize;
 
-    public MazeData(int chunkSize, Vector2Int mazeSizeInChunks)
+    // Обновленный конструктор с поддержкой seed
+    public MazeData(int chunkSize, Vector2Int mazeSizeInChunks, int seed = 0)
     {
         ChunkSize = chunkSize;
         MazeSizeInChunks = mazeSizeInChunks;
+        Seed = seed;
         StartGenerationCells = new List<Vector2Int>();
         Chunks = new MazeChunk[mazeSizeInChunks.x, mazeSizeInChunks.y];
     }
@@ -62,11 +65,8 @@ public class MazeData
         return ChunkExists(chunkX, chunkZ) ? Chunks[chunkX, chunkZ] : null;
     }
 
-    // ПЕРЕРАБОТАННЫЙ МЕТОД ПРОВЕРКИ СТЕН
-    // ПЕРЕРАБОТАННЫЙ МЕТОД - СИММЕТРИЧНАЯ ПРОВЕРКА
     public bool HasWallBetween(Vector2Int fromGlobal, Vector2Int toGlobal)
     {
-        // Валидация входных данных
         if (fromGlobal == toGlobal)
         {
             return false;
@@ -74,17 +74,14 @@ public class MazeData
 
         Vector2Int direction = toGlobal - fromGlobal;
 
-        // Проверяем что движение только на 1 клетку
         if (Mathf.Abs(direction.x) + Mathf.Abs(direction.y) != 1)
         {
             return true;
         }
 
-        // ВАЖНО: проверяем стену в ОБОИХ направлениях!
         bool wallFromAtoB = CheckWallInDirection(fromGlobal, direction);
         bool wallFromBtoA = CheckWallInDirection(toGlobal, -direction);
 
-        // Если есть хоть одна стена - движение запрещено
         bool hasWall = wallFromAtoB || wallFromBtoA;
 
         Debug.Log($"🔍 Wall check: {fromGlobal} -> {toGlobal}");
@@ -94,7 +91,6 @@ public class MazeData
         return hasWall;
     }
 
-    // Новый метод для проверки стены в конкретном направлении
     public bool CheckWallInDirection(Vector2Int globalPos, Vector2Int direction)
     {
         Vector2Int chunkPos = new Vector2Int(globalPos.x / ChunkSize, globalPos.y / ChunkSize);
@@ -106,19 +102,19 @@ public class MazeData
         var chunk = GetChunk(chunkPos.x, chunkPos.y);
         if (chunk == null) return true;
 
-        if (direction == Vector2Int.up) // Вперед (Z+)
+        if (direction == Vector2Int.up)
         {
             return chunk.HorizontalWalls[cellPos.x, cellPos.y + 1];
         }
-        else if (direction == Vector2Int.down) // Назад (Z-)
+        else if (direction == Vector2Int.down)
         {
             return chunk.HorizontalWalls[cellPos.x, cellPos.y];
         }
-        else if (direction == Vector2Int.right) // Вправо (X+)
+        else if (direction == Vector2Int.right)
         {
             return chunk.VerticalWalls[cellPos.x + 1, cellPos.y];
         }
-        else if (direction == Vector2Int.left) // Влево (X-)
+        else if (direction == Vector2Int.left)
         {
             return chunk.VerticalWalls[cellPos.x, cellPos.y];
         }
@@ -126,7 +122,6 @@ public class MazeData
         return true;
     }
 
-    // Метод для отладки - проверить все стены вокруг позиции
     public void DebugAllWallsAround(Vector2Int globalPos)
     {
         Debug.Log($"🔍 ALL WALLS AROUND {globalPos}:");
@@ -155,7 +150,6 @@ public class MazeData
 
     public void ClearCache()
     {
-        // Очистка кэша если он есть
     }
 }
 
@@ -179,7 +173,6 @@ public class MazeChunk
 
     private void InitializeWalls()
     {
-        // Инициализируем ВСЕ стены как существующие (true = стена есть)
         for (int x = 0; x < Size; x++)
         {
             for (int y = 0; y <= Size; y++)
@@ -197,7 +190,6 @@ public class MazeChunk
         }
     }
 
-    // УДАЛЕНИЕ стены (false = стены нет)
     public void RemoveHorizontalWall(int x, int y)
     {
         if (x >= 0 && x < Size && y >= 0 && y <= Size)

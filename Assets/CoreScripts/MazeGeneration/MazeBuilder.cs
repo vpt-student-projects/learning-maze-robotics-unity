@@ -13,12 +13,12 @@ public class MazeBuilder
         mazeData = data;
         generator = mazeGenerator;
         visualizer = new MazeVisualizer(data, mazeGenerator);
-        random = new System.Random();
+        random = new System.Random(mazeData.Seed); // Используем seed
     }
 
     public void Generate()
     {
-        Debug.Log("🚀 Starting maze generation...");
+        Debug.Log($"🚀 Starting maze generation with seed {mazeData.Seed}...");
 
         if (generator.createFinishArea)
         {
@@ -68,31 +68,25 @@ public class MazeBuilder
                     mazeData.StartGenerationCells.Add(new Vector2Int(cellX, cellY));
                     Debug.Log($"   ✅ Added finish cell: ({cellX},{cellY})");
 
-                    // Убираем внутренние стены квадрата 2x2
-                    // Между (0,0) и (1,0) - вертикальная стена справа от (0,0)
-                    if (offsetX == 0 && offsetY == 0) // Левый нижний
+                    if (offsetX == 0 && offsetY == 0)
                     {
-                        // Убираем стену справа и сверху
-                        chunk.RemoveVerticalWall(cellX + 1, cellY); // Правая стена
-                        chunk.RemoveHorizontalWall(cellX, cellY + 1); // Верхняя стена
+                        chunk.RemoveVerticalWall(cellX + 1, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY + 1);
                     }
-                    else if (offsetX == 1 && offsetY == 0) // Правый нижний
+                    else if (offsetX == 1 && offsetY == 0)
                     {
-                        // Убираем стену слева и сверху
-                        chunk.RemoveVerticalWall(cellX, cellY); // Левая стена
-                        chunk.RemoveHorizontalWall(cellX, cellY + 1); // Верхняя стена
+                        chunk.RemoveVerticalWall(cellX, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY + 1);
                     }
-                    else if (offsetX == 0 && offsetY == 1) // Левый верхний
+                    else if (offsetX == 0 && offsetY == 1)
                     {
-                        // Убираем стену справа и снизу
-                        chunk.RemoveVerticalWall(cellX + 1, cellY); // Правая стена
-                        chunk.RemoveHorizontalWall(cellX, cellY); // Нижняя стена
+                        chunk.RemoveVerticalWall(cellX + 1, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY);
                     }
-                    else if (offsetX == 1 && offsetY == 1) // Правый верхний
+                    else if (offsetX == 1 && offsetY == 1)
                     {
-                        // Убираем стену слева и снизу
-                        chunk.RemoveVerticalWall(cellX, cellY); // Левая стена
-                        chunk.RemoveHorizontalWall(cellX, cellY); // Нижняя стена
+                        chunk.RemoveVerticalWall(cellX, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY);
                     }
 
                     chunk.Visited[cellX, cellY] = true;
@@ -177,31 +171,26 @@ public class MazeBuilder
 
         if (chunkX == newChunkX && chunkZ == newChunkZ)
         {
-            // Внутри одного чанка
             var chunk = mazeData.GetChunk(chunkX, chunkZ);
             if (chunk != null)
             {
                 if (direction == Vector2Int.right)
                 {
-                    // Убираем вертикальную стену СПРАВА от текущей клетки
                     Debug.Log($"   ➖ Removing RIGHT wall at [{x + 1}, {y}]");
                     chunk.RemoveVerticalWall(x + 1, y);
                 }
                 else if (direction == Vector2Int.left)
                 {
-                    // Убираем вертикальную стену СЛЕВА от текущей клетки
                     Debug.Log($"   ➖ Removing LEFT wall at [{x}, {y}]");
                     chunk.RemoveVerticalWall(x, y);
                 }
                 else if (direction == Vector2Int.up)
                 {
-                    // Убираем горизонтальную стену СВЕРХУ от текущей клетки
                     Debug.Log($"   ➖ Removing UP wall at [{x}, {y + 1}]");
                     chunk.RemoveHorizontalWall(x, y + 1);
                 }
                 else if (direction == Vector2Int.down)
                 {
-                    // Убираем горизонтальную стену СНИЗУ от текущей клетки
                     Debug.Log($"   ➖ Removing DOWN wall at [{x}, {y}]");
                     chunk.RemoveHorizontalWall(x, y);
                 }
@@ -209,7 +198,6 @@ public class MazeBuilder
         }
         else
         {
-            // Межчанковый переход
             if (direction == Vector2Int.right)
             {
                 var currentChunk = mazeData.GetChunk(chunkX, chunkZ);

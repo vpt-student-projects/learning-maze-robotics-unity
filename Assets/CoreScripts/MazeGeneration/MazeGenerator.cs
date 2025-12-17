@@ -32,6 +32,11 @@ public class MazeGenerator : MonoBehaviour
     public float wallHeight = 3f;
     public float wallThickness = 0.1f;
 
+    [Header("Настройки Seed")]
+    [Tooltip("Seed для генерации лабиринта. Если 0 - используется случайный seed")]
+    public int mazeSeed = 0;
+    public bool useRandomSeed = true;
+
     [Header("Поведение при регенерации")]
     [Tooltip("Если включено, при генерации будет уничтожаться объект(ы) с CarController. Если выключено — объект машины сохраняется, сбрасывается и переинициализируется.")]
     public bool destroyExistingCarObjects = false;
@@ -39,7 +44,7 @@ public class MazeGenerator : MonoBehaviour
     [Header("Камера")]
     public MazeCameraController cameraController;
 
-    [Header("Таймер")] // НОВОЕ: ссылка на таймер
+    [Header("Таймер")]
     public MazeTimer mazeTimer;
 
     [Header("События")]
@@ -69,7 +74,6 @@ public class MazeGenerator : MonoBehaviour
         yield return StartCoroutine(SpawnCarCoroutine());
         yield return StartCoroutine(StartAPICoroutine());
 
-        // НОВОЕ: инициализация таймера
         if (mazeTimer == null)
         {
             mazeTimer = FindObjectOfType<MazeTimer>();
@@ -77,7 +81,6 @@ public class MazeGenerator : MonoBehaviour
 
         if (mazeTimer != null)
         {
-            // Связываем таймер с машинкой если нужно
             if (carController != null && carController.mazeTimer == null)
             {
                 carController.mazeTimer = mazeTimer;
@@ -96,6 +99,28 @@ public class MazeGenerator : MonoBehaviour
             StartCoroutine(InitializeSequence());
     }
 
+    [ContextMenu("Сгенерировать с текущим Seed")]
+    public void GenerateMazeWithCurrentSeed()
+    {
+        if (!isGenerating)
+        {
+            Debug.Log($"🔢 Generating maze with seed: {mazeSeed}");
+            StartCoroutine(InitializeSequence());
+        }
+    }
+
+    [ContextMenu("Сгенерировать со случайным Seed")]
+    public void GenerateMazeWithRandomSeed()
+    {
+        if (!isGenerating)
+        {
+            mazeSeed = new System.Random().Next();
+            useRandomSeed = false; // Используем конкретный seed
+            Debug.Log($"🎲 Generating maze with random seed: {mazeSeed}");
+            StartCoroutine(InitializeSequence());
+        }
+    }
+
     private IEnumerator GenerateMazeCoroutine()
     {
         Debug.Log("🔄 Step 1: Generating maze...");
@@ -105,7 +130,6 @@ public class MazeGenerator : MonoBehaviour
         mazeData.Initialize();
         mazeBuilder.Generate();
 
-        // Обновляем таймер (финиш/ссылки) под новый MazeData
         if (mazeTimer == null)
         {
             mazeTimer = FindObjectOfType<MazeTimer>();
@@ -119,7 +143,7 @@ public class MazeGenerator : MonoBehaviour
         if (cameraController != null)
             cameraController.UpdateCameraForNewMaze();
 
-        Debug.Log($"✅ Maze generated: {mazeSizeInChunks.x}x{mazeSizeInChunks.y} chunks, {chunkSize} cells per chunk");
+        Debug.Log($"✅ Maze generated with seed {mazeData.Seed}: {mazeSizeInChunks.x}x{mazeSizeInChunks.y} chunks, {chunkSize} cells per chunk");
         OnMazeGenerated?.Invoke();
 
         yield return null;
@@ -158,11 +182,9 @@ public class MazeGenerator : MonoBehaviour
             carController = existingCar;
             SetLayerRecursively(carController.gameObject, LayerMask.NameToLayer("Car"));
 
-            // Обновляем ссылки и форсим переинициализацию под новый лабиринт/ноды
             carController.mazeGenerator = this;
             carController.carPrefab = carPrefab;
 
-            // НОВОЕ: связываем таймер если он есть
             if (mazeTimer != null)
             {
                 carController.mazeTimer = mazeTimer;
@@ -181,7 +203,6 @@ public class MazeGenerator : MonoBehaviour
             carController.carPrefab = carPrefab;
             carController.mazeGenerator = this;
 
-            // НОВОЕ: связываем таймер если он есть
             if (mazeTimer != null)
             {
                 carController.mazeTimer = mazeTimer;
@@ -237,7 +258,23 @@ public class MazeGenerator : MonoBehaviour
 
     private void InitializeComponents()
     {
-        mazeData = new MazeData(chunkSize, mazeSizeInChunks);
+        // Генерируем или используем seed
+        if (useRandomSeed)
+        {
+            mazeSeed = new System.Random().Next();
+            Debug.Log($"🎲 Generated random seed: {mazeSeed}");
+        }
+        else if (mazeSeed == 0)
+        {
+            mazeSeed = new System.Random().Next();
+            Debug.Log($"🎲 No seed specified, generated random seed: {mazeSeed}");
+        }
+        else
+        {
+            Debug.Log($"🔢 Using fixed seed: {mazeSeed}");
+        }
+
+        mazeData = new MazeData(chunkSize, mazeSizeInChunks, mazeSeed);
         mazeBuilder = new MazeBuilder(mazeData, this);
         nodeGenerator = new NodeGenerator(this);
 
@@ -251,7 +288,6 @@ public class MazeGenerator : MonoBehaviour
         mazeBuilder?.Clear();
         nodeGenerator?.Clear();
 
-        // Останавливаем таймер если есть
         if (mazeTimer != null)
         {
             mazeTimer.ResetTimer();
@@ -271,7 +307,6 @@ public class MazeGenerator : MonoBehaviour
             }
             else
             {
-                // Сохраняем объект машины (и все компоненты на нём), но сбрасываем внутреннее состояние
                 car.ResetInternalState();
                 car.mazeGenerator = this;
                 if (mazeTimer != null) car.mazeTimer = mazeTimer;
@@ -302,7 +337,7 @@ public class MazeGenerator : MonoBehaviour
 
     public MazeData GetMazeData() => mazeData;
     public CarController GetCarController() => carController;
-    public MazeTimer GetMazeTimer() => mazeTimer; // НОВЫЙ метод
+    public MazeTimer GetMazeTimer() => mazeTimer;
 
     public int GetTotalCellsX() => mazeSizeInChunks.x * chunkSize;
     public int GetTotalCellsZ() => mazeSizeInChunks.y * chunkSize;
@@ -311,4 +346,11 @@ public class MazeGenerator : MonoBehaviour
 
     public float GetNodeSpawnHeight() => nodeSpawnHeight;
     public float GetCarSpawnHeight() => carSpawnHeight;
+
+    public int GetCurrentSeed() => mazeSeed;
+    public void SetSeed(int newSeed)
+    {
+        mazeSeed = newSeed;
+        useRandomSeed = false;
+    }
 }

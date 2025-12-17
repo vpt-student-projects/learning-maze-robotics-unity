@@ -9,7 +9,7 @@ public class MazeMenuController : MonoBehaviour
     public MazeGenerator mazeGenerator;
     public CanvasGroup menuCanvasGroup;
     public RectTransform menuPanel;
-    public MazeTimer mazeTimer; // НОВОЕ: ссылка на таймер
+    public MazeTimer mazeTimer;
 
     [Header("Режимы игры")]
     public ToggleGroup modeToggleGroup;
@@ -24,11 +24,17 @@ public class MazeMenuController : MonoBehaviour
     public Toggle createFinishToggle;
     public Toggle useRightHandRuleToggle;
 
+    [Header("Управление Seed")]
+    public TMP_InputField seedInputField;
+    public Toggle useRandomSeedToggle;
+    public Button randomSeedButton;
+    public TextMeshProUGUI currentSeedText;
+
     [Header("Кнопки")]
     public Button generateButton;
     public Button closeButton;
     public Button resetSettingsButton;
-    public Button restartButton; // НОВАЯ КНОПКА
+    public Button restartButton;
 
     [Header("Настройки UI")]
     public float fadeDuration = 0.3f;
@@ -50,6 +56,7 @@ public class MazeMenuController : MonoBehaviour
         public float wallHeight;
         public bool hasFinish;
         public bool useRightHandRule;
+        public bool useRandomSeed;
     }
 
     private DefaultSettings defaultSettings;
@@ -78,10 +85,25 @@ public class MazeMenuController : MonoBehaviour
         closeButton.onClick.AddListener(ToggleMenu);
         resetSettingsButton.onClick.AddListener(ResetToDefaults);
 
-        // НОВОЕ: инициализация кнопки рестарта
         if (restartButton != null)
         {
             restartButton.onClick.AddListener(OnRestartButtonClick);
+        }
+
+        // Seed элементы
+        if (seedInputField != null)
+        {
+            seedInputField.onEndEdit.AddListener(OnSeedInputChanged);
+        }
+
+        if (useRandomSeedToggle != null)
+        {
+            useRandomSeedToggle.onValueChanged.AddListener(OnRandomSeedToggleChanged);
+        }
+
+        if (randomSeedButton != null)
+        {
+            randomSeedButton.onClick.AddListener(OnRandomSeedButtonClick);
         }
 
         chunkSizeInput.onEndEdit.AddListener(OnChunkSizeChanged);
@@ -105,7 +127,8 @@ public class MazeMenuController : MonoBehaviour
             cellSize = 2f,
             wallHeight = 3f,
             hasFinish = true,
-            useRightHandRule = true
+            useRightHandRule = true,
+            useRandomSeed = true
         };
     }
 
@@ -116,6 +139,19 @@ public class MazeMenuController : MonoBehaviour
         mazeHeightInput.text = defaultSettings.mazeHeight.ToString();
         createFinishToggle.isOn = defaultSettings.hasFinish;
         useRightHandRuleToggle.isOn = defaultSettings.useRightHandRule;
+
+        // Установка значений seed по умолчанию
+        if (seedInputField != null)
+        {
+            seedInputField.text = "0";
+        }
+
+        if (useRandomSeedToggle != null)
+        {
+            useRandomSeedToggle.isOn = defaultSettings.useRandomSeed;
+        }
+
+        UpdateCurrentSeedText();
     }
 
     void OnGenerateButtonClick()
@@ -130,7 +166,6 @@ public class MazeMenuController : MonoBehaviour
         StartCoroutine(GenerationSequence());
     }
 
-    // НОВЫЙ МЕТОД: обработка нажатия кнопки рестарта
     void OnRestartButtonClick()
     {
         if (mazeTimer != null)
@@ -140,7 +175,6 @@ public class MazeMenuController : MonoBehaviour
         }
         else
         {
-            // Пытаемся найти все компоненты
             mazeTimer = FindObjectOfType<MazeTimer>();
             if (mazeTimer != null)
             {
@@ -151,11 +185,9 @@ public class MazeMenuController : MonoBehaviour
             {
                 Debug.LogWarning("⚠️ MazeTimer не найден, пытаемся выполнить рестарт вручную");
 
-                // Прямой рестарт без таймера
                 CarController car = FindObjectOfType<CarController>();
                 if (car != null && mazeGenerator != null)
                 {
-                    // Возвращаем машинку на старт
                     if (mazeGenerator.createFinishArea)
                     {
                         var mazeData = mazeGenerator.GetMazeData();
@@ -200,6 +232,7 @@ public class MazeMenuController : MonoBehaviour
         Debug.Log("✅ Генерация завершена");
     }
 
+    // ОДИН метод ApplySettingsToMazeGenerator
     void ApplySettingsToMazeGenerator()
     {
         if (int.TryParse(chunkSizeInput.text, out int chunkSize))
@@ -214,7 +247,77 @@ public class MazeMenuController : MonoBehaviour
         mazeGenerator.createFinishArea = createFinishToggle.isOn;
         mazeGenerator.useRightHandRule = useRightHandRuleToggle.isOn;
 
+        // НОВОЕ: Применение seed настроек
+        if (seedInputField != null && !useRandomSeedToggle.isOn)
+        {
+            if (int.TryParse(seedInputField.text, out int seed))
+            {
+                mazeGenerator.SetSeed(seed);
+            }
+        }
+        mazeGenerator.useRandomSeed = useRandomSeedToggle != null ? useRandomSeedToggle.isOn : true;
+
+        UpdateCurrentSeedText();
+
         Debug.Log("⚙️ Настройки применены к генератору");
+    }
+
+    // Методы для управления seed
+    void OnSeedInputChanged(string value)
+    {
+        if (int.TryParse(value, out int seed))
+        {
+            if (useRandomSeedToggle != null)
+            {
+                useRandomSeedToggle.isOn = false; // При ручном вводе отключаем случайный seed
+            }
+            UpdateCurrentSeedText();
+        }
+    }
+
+    void OnRandomSeedToggleChanged(bool isRandom)
+    {
+        if (seedInputField != null)
+        {
+            seedInputField.interactable = !isRandom;
+        }
+        UpdateCurrentSeedText();
+    }
+
+    void OnRandomSeedButtonClick()
+    {
+        if (mazeGenerator != null)
+        {
+            // Генерируем случайный seed
+            int randomSeed = new System.Random().Next();
+
+            if (seedInputField != null)
+            {
+                seedInputField.text = randomSeed.ToString();
+            }
+
+            if (useRandomSeedToggle != null)
+            {
+                useRandomSeedToggle.isOn = false;
+            }
+
+            UpdateCurrentSeedText();
+        }
+    }
+
+    void UpdateCurrentSeedText()
+    {
+        if (mazeGenerator != null && currentSeedText != null)
+        {
+            if (mazeGenerator.useRandomSeed)
+            {
+                currentSeedText.text = "Seed: Случайный";
+            }
+            else
+            {
+                currentSeedText.text = $"Seed: {mazeGenerator.mazeSeed}";
+            }
+        }
     }
 
     void ToggleMenu()
@@ -260,7 +363,7 @@ public class MazeMenuController : MonoBehaviour
     {
         Debug.Log("🔄 Сброс настроек к значениям по умолчанию");
         ApplyDefaultSettingsToUI();
-        ApplySettingsToMazeGenerator();
+        ApplySettingsToMazeGenerator(); // Только один вызов этого метода
     }
 
     void OnChunkSizeChanged(string value)
@@ -302,7 +405,6 @@ public class MazeMenuController : MonoBehaviour
             OnGenerateButtonClick();
         }
 
-        // НОВОЕ: горячая клавиша для рестарта (Ctrl+R)
         if (Input.GetKeyDown(KeyCode.R) && Input.GetKey(KeyCode.LeftControl))
         {
             OnRestartButtonClick();
