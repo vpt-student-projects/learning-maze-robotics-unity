@@ -2,286 +2,265 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using System.Linq;
 
 public class MazeMenuController : MonoBehaviour
 {
-    [Header("Основные ссылки")]
+    [Header("Главные ссылки (обязательно)")]
     public MazeGenerator mazeGenerator;
-    public CanvasGroup menuCanvasGroup;
-    public RectTransform menuPanel;
-    public MazeTimer mazeTimer;
 
-    [Header("Режимы игры")]
-    public ToggleGroup modeToggleGroup;
-    public Toggle hardModeToggle;
-    public Toggle easyModeToggle;
-    public Toggle proModeToggle;
-
-    [Header("Настройки лабиринта")]
-    public TMP_InputField chunkSizeInput;
-    public TMP_InputField mazeWidthInput;
-    public TMP_InputField mazeHeightInput;
-    public Toggle createFinishToggle;
-    public Toggle useRightHandRuleToggle;
-
-    [Header("Управление Seed")]
-    public TMP_InputField seedInputField;
-    public Toggle useRandomSeedToggle;
-    public Button randomSeedButton;
-    public TextMeshProUGUI currentSeedText;
-
-    [Header("Кнопки")]
-    public Button generateButton;
-    public Button closeButton;
-    public Button resetSettingsButton;
-    public Button restartButton;
-
-    [Header("Настройки UI")]
-    public float fadeDuration = 0.3f;
-    public bool startVisible = true;
-    public bool hideDuringGeneration = true;
-
-    private Vector2 menuHiddenPosition;
-    private Vector2 menuVisiblePosition;
-    private bool isMenuVisible = true;
-    private Coroutine fadeCoroutine;
-
-    [System.Serializable]
-    private struct DefaultSettings
-    {
-        public int chunkSize;
-        public int mazeWidth;
-        public int mazeHeight;
-        public float cellSize;
-        public float wallHeight;
-        public bool hasFinish;
-        public bool useRightHandRule;
-        public bool useRandomSeed;
-    }
-
-    private DefaultSettings defaultSettings;
+    // Эти поля будут найдены автоматически
+    [HideInInspector] public Button generateButton;
+    [HideInInspector] public TMP_InputField seedInputField;
+    [HideInInspector] public Toggle useRandomSeedToggle;
+    [HideInInspector] public TextMeshProUGUI currentSeedText;
+    [HideInInspector] public Button randomSeedButton;
 
     void Start()
     {
-        InitializeMenu();
-        LoadDefaultSettings();
-        ApplyDefaultSettingsToUI();
+        Debug.Log("🔄 Инициализация MazeMenuController...");
 
-        if (!startVisible)
+        // 1. Автоматически находим MazeGenerator если не привязан
+        if (mazeGenerator == null)
         {
-            menuCanvasGroup.alpha = 0;
-            menuCanvasGroup.interactable = false;
-            menuCanvasGroup.blocksRaycasts = false;
-            isMenuVisible = false;
+            mazeGenerator = FindObjectOfType<MazeGenerator>();
+            if (mazeGenerator == null)
+            {
+                Debug.LogError("❌ MazeGenerator не найден в сцене!");
+                enabled = false;
+                return;
+            }
+            Debug.Log("✅ MazeGenerator найден автоматически");
         }
+
+        // 2. Находим ВСЕ UI элементы автоматически
+        FindAllUIElements();
+
+        // 3. Инициализируем кнопки
+        InitializeButtons();
+
+        // 4. Устанавливаем начальные значения
+        SetInitialValues();
+
+        Debug.Log("✅ MazeMenuController успешно инициализирован!");
     }
 
-    void InitializeMenu()
+    void FindAllUIElements()
     {
-        menuVisiblePosition = menuPanel.anchoredPosition;
-        menuHiddenPosition = menuVisiblePosition + new Vector2(-menuPanel.rect.width, 0);
+        // ВАЖНО: Ищем кнопку ButtonCreate (ваша кнопка!)
+        generateButton = FindButtonByName("ButtonCreate", "GenerateButton", "GenerateBtn", "ButtonGenerate", "Generate");
 
+        if (generateButton == null)
+        {
+            Debug.LogError("❌ Не удалось найти кнопку генерации!");
+            Debug.Log("Искал кнопки: ButtonCreate, GenerateButton, GenerateBtn, ButtonGenerate, Generate");
+            enabled = false;
+            return;
+        }
+
+        // Находим поле ввода seed
+        seedInputField = FindInputFieldByName("SeedInputField", "SeedInput", "SeedField");
+
+        // Находим toggle случайного seed
+        useRandomSeedToggle = FindToggleByName("UseRandomSeedToggle", "RandomSeedToggle", "RandomToggle");
+
+        // Находим текст текущего seed
+        currentSeedText = FindTextByName("CurrentSeedText", "SeedText", "CurrentSeed");
+
+        // Находим кнопку случайного seed
+        randomSeedButton = FindButtonByName("RandomSeedButton", "RandomSeedBtn", "RandomButton");
+
+        Debug.Log("✅ Все UI элементы найдены");
+    }
+
+    void InitializeButtons()
+    {
+        // Подписываемся на клик основной кнопки
+        generateButton.onClick.RemoveAllListeners();
         generateButton.onClick.AddListener(OnGenerateButtonClick);
-        closeButton.onClick.AddListener(ToggleMenu);
-        resetSettingsButton.onClick.AddListener(ResetToDefaults);
 
-        if (restartButton != null)
-        {
-            restartButton.onClick.AddListener(OnRestartButtonClick);
-        }
-
-        // Seed элементы
-        if (seedInputField != null)
-        {
-            seedInputField.onEndEdit.AddListener(OnSeedInputChanged);
-        }
-
-        if (useRandomSeedToggle != null)
-        {
-            useRandomSeedToggle.onValueChanged.AddListener(OnRandomSeedToggleChanged);
-        }
-
+        // Подписываемся на кнопку случайного seed если есть
         if (randomSeedButton != null)
         {
+            randomSeedButton.onClick.RemoveAllListeners();
             randomSeedButton.onClick.AddListener(OnRandomSeedButtonClick);
         }
 
-        chunkSizeInput.onEndEdit.AddListener(OnChunkSizeChanged);
-        mazeWidthInput.onEndEdit.AddListener(OnMazeWidthChanged);
-        mazeHeightInput.onEndEdit.AddListener(OnMazeHeightChanged);
-
-        easyModeToggle.interactable = false;
-        proModeToggle.interactable = false;
-        hardModeToggle.isOn = true;
-
-        Debug.Log("✅ Меню инициализировано");
-    }
-
-    void LoadDefaultSettings()
-    {
-        defaultSettings = new DefaultSettings
-        {
-            chunkSize = 4,
-            mazeWidth = 3,
-            mazeHeight = 3,
-            cellSize = 2f,
-            wallHeight = 3f,
-            hasFinish = true,
-            useRightHandRule = true,
-            useRandomSeed = true
-        };
-    }
-
-    void ApplyDefaultSettingsToUI()
-    {
-        chunkSizeInput.text = defaultSettings.chunkSize.ToString();
-        mazeWidthInput.text = defaultSettings.mazeWidth.ToString();
-        mazeHeightInput.text = defaultSettings.mazeHeight.ToString();
-        createFinishToggle.isOn = defaultSettings.hasFinish;
-        useRightHandRuleToggle.isOn = defaultSettings.useRightHandRule;
-
-        // Установка значений seed по умолчанию
+        // Подписываемся на изменения в поле seed если есть
         if (seedInputField != null)
         {
-            seedInputField.text = "0";
+            seedInputField.onEndEdit.RemoveAllListeners();
+            seedInputField.onEndEdit.AddListener(OnSeedInputChanged);
+        }
+
+        // Подписываемся на изменения toggle если есть
+        if (useRandomSeedToggle != null)
+        {
+            useRandomSeedToggle.onValueChanged.RemoveAllListeners();
+            useRandomSeedToggle.onValueChanged.AddListener(OnRandomSeedToggleChanged);
+        }
+    }
+
+    void SetInitialValues()
+    {
+        // Устанавливаем начальные значения
+        if (seedInputField != null)
+        {
+            seedInputField.text = mazeGenerator.mazeSeed.ToString();
         }
 
         if (useRandomSeedToggle != null)
         {
-            useRandomSeedToggle.isOn = defaultSettings.useRandomSeed;
+            useRandomSeedToggle.isOn = mazeGenerator.useRandomSeed;
         }
 
         UpdateCurrentSeedText();
     }
 
-    void OnGenerateButtonClick()
-    {
-        if (mazeGenerator == null)
-        {
-            Debug.LogError("❌ MazeGenerator не назначен!");
-            return;
-        }
-        ToggleMenu();
-        ApplySettingsToMazeGenerator();
-        StartCoroutine(GenerationSequence());
-    }
+    // === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ДЛЯ ПОИСКА ===
 
-    void OnRestartButtonClick()
+    Button FindButtonByName(params string[] names)
     {
-        if (mazeTimer != null)
+        foreach (string name in names)
         {
-            mazeTimer.OnRestartButtonClick();
-            Debug.Log("🔄 Рестарт выполнен через MazeMenuController");
-        }
-        else
-        {
-            mazeTimer = FindObjectOfType<MazeTimer>();
-            if (mazeTimer != null)
+            GameObject obj = GameObject.Find(name);
+            if (obj != null)
             {
-                mazeTimer.OnRestartButtonClick();
-                Debug.Log("🔄 Рестарт выполнен (таймер найден автоматически)");
-            }
-            else
-            {
-                Debug.LogWarning("⚠️ MazeTimer не найден, пытаемся выполнить рестарт вручную");
-
-                CarController car = FindObjectOfType<CarController>();
-                if (car != null && mazeGenerator != null)
+                Button btn = obj.GetComponent<Button>();
+                if (btn != null)
                 {
-                    if (mazeGenerator.createFinishArea)
-                    {
-                        var mazeData = mazeGenerator.GetMazeData();
-                        if (mazeData != null)
-                        {
-                            int startChunkX = mazeData.StartGenerationChunk.x;
-                            int startChunkZ = mazeData.StartGenerationChunk.y;
-                            int startCellX = Mathf.Max(0, mazeData.StartGenerationCell.x - 2);
-                            int startCellZ = Mathf.Max(0, mazeData.StartGenerationCell.y - 2);
-
-                            car.SetCarPosition(startChunkX, startChunkZ, startCellX, startCellZ);
-                            car.ResetDirection();
-                            Debug.Log($"🔄 Машинка возвращена на старт вручную");
-                        }
-                    }
+                    Debug.Log($"✅ Найдена кнопка: {name}");
+                    return btn;
                 }
             }
         }
-    }
 
-    IEnumerator GenerationSequence()
-    {
-        if (hideDuringGeneration)
+        // Если не нашли по имени, ищем любую кнопку с текстом "Generate" или "Create"
+        Button[] allButtons = FindObjectsOfType<Button>();
+        foreach (Button btn in allButtons)
         {
-            ToggleMenu();
-        }
-
-        Debug.Log("🔄 Запуск генерации лабиринта...");
-        generateButton.interactable = false;
-
-        mazeGenerator.GenerateMaze();
-
-        yield return new WaitUntil(() => !mazeGenerator.IsGenerating());
-
-        generateButton.interactable = true;
-
-        if (hideDuringGeneration)
-        {
-            ToggleMenu();
-        }
-
-        Debug.Log("✅ Генерация завершена");
-    }
-
-    // ОДИН метод ApplySettingsToMazeGenerator
-    void ApplySettingsToMazeGenerator()
-    {
-        if (int.TryParse(chunkSizeInput.text, out int chunkSize))
-            mazeGenerator.chunkSize = Mathf.Clamp(chunkSize, 2, 10);
-
-        if (int.TryParse(mazeWidthInput.text, out int width))
-            mazeGenerator.mazeSizeInChunks.x = Mathf.Clamp(width, 1, 10);
-
-        if (int.TryParse(mazeHeightInput.text, out int height))
-            mazeGenerator.mazeSizeInChunks.y = Mathf.Clamp(height, 1, 10);
-
-        mazeGenerator.createFinishArea = createFinishToggle.isOn;
-        mazeGenerator.useRightHandRule = useRightHandRuleToggle.isOn;
-
-        // НОВОЕ: Применение seed настроек
-        if (seedInputField != null && !useRandomSeedToggle.isOn)
-        {
-            if (int.TryParse(seedInputField.text, out int seed))
+            string buttonText = GetButtonText(btn);
+            if (!string.IsNullOrEmpty(buttonText))
             {
-                mazeGenerator.SetSeed(seed);
+                if (buttonText.Contains("Generate") ||
+                    buttonText.Contains("Генерировать") ||
+                    buttonText.Contains("Create") ||
+                    buttonText.Contains("Создать"))
+                {
+                    Debug.Log($"✅ Найдена кнопка по тексту: {btn.name} (текст: {buttonText})");
+                    return btn;
+                }
             }
         }
-        mazeGenerator.useRandomSeed = useRandomSeedToggle != null ? useRandomSeedToggle.isOn : true;
 
-        UpdateCurrentSeedText();
-
-        Debug.Log("⚙️ Настройки применены к генератору");
+        Debug.LogWarning($"⚠️ Не найдена кнопка с именами: {string.Join(", ", names)}");
+        return null;
     }
 
-    // Методы для управления seed
-    void OnSeedInputChanged(string value)
+    string GetButtonText(Button button)
     {
-        if (int.TryParse(value, out int seed))
+        // Пробуем получить текст из TextMeshPro
+        TextMeshProUGUI tmpText = button.GetComponentInChildren<TextMeshProUGUI>();
+        if (tmpText != null) return tmpText.text;
+
+        // Пробуем получить текст из обычного Text
+        Text text = button.GetComponentInChildren<Text>();
+        if (text != null) return text.text;
+
+        return "";
+    }
+
+    TMP_InputField FindInputFieldByName(params string[] names)
+    {
+        foreach (string name in names)
         {
-            if (useRandomSeedToggle != null)
+            GameObject obj = GameObject.Find(name);
+            if (obj != null)
             {
-                useRandomSeedToggle.isOn = false; // При ручном вводе отключаем случайный seed
+                TMP_InputField input = obj.GetComponent<TMP_InputField>();
+                if (input != null)
+                {
+                    Debug.Log($"✅ Найдено поле ввода: {name}");
+                    return input;
+                }
             }
-            UpdateCurrentSeedText();
         }
+        Debug.LogWarning($"⚠️ Не найдено поле ввода с именами: {string.Join(", ", names)}");
+        return null;
     }
 
-    void OnRandomSeedToggleChanged(bool isRandom)
+    Toggle FindToggleByName(params string[] names)
     {
-        if (seedInputField != null)
+        foreach (string name in names)
         {
-            seedInputField.interactable = !isRandom;
+            GameObject obj = GameObject.Find(name);
+            if (obj != null)
+            {
+                Toggle toggle = obj.GetComponent<Toggle>();
+                if (toggle != null)
+                {
+                    Debug.Log($"✅ Найден toggle: {name}");
+                    return toggle;
+                }
+            }
         }
-        UpdateCurrentSeedText();
+        Debug.LogWarning($"⚠️ Не найден toggle с именами: {string.Join(", ", names)}");
+        return null;
+    }
+
+    TextMeshProUGUI FindTextByName(params string[] names)
+    {
+        foreach (string name in names)
+        {
+            GameObject obj = GameObject.Find(name);
+            if (obj != null)
+            {
+                TextMeshProUGUI text = obj.GetComponent<TextMeshProUGUI>();
+                if (text != null)
+                {
+                    Debug.Log($"✅ Найден текст: {name}");
+                    return text;
+                }
+            }
+        }
+        Debug.LogWarning($"⚠️ Не найден текст с именами: {string.Join(", ", names)}");
+        return null;
+    }
+
+    // === ОСНОВНЫЕ МЕТОДЫ ===
+
+    void OnGenerateButtonClick()
+    {
+        Debug.Log("🔄 Нажата кнопка генерации!");
+
+        if (mazeGenerator == null)
+        {
+            Debug.LogError("❌ MazeGenerator не найден!");
+            return;
+        }
+
+        if (mazeGenerator.IsGenerating())
+        {
+            Debug.Log("⏳ Генерация уже выполняется, подождите...");
+            return;
+        }
+
+        // Применяем настройки
+        ApplySettingsToMazeGenerator();
+
+        // Выбираем метод генерации
+        bool useRandom = (useRandomSeedToggle != null && useRandomSeedToggle.isOn);
+
+        if (useRandom)
+        {
+            Debug.Log("🎲 Генерация со случайным seed");
+            mazeGenerator.GenerateMazeWithRandomSeed();
+        }
+        else
+        {
+            Debug.Log($"🔢 Генерация с seed: {mazeGenerator.mazeSeed}");
+            mazeGenerator.GenerateMazeWithCurrentSeed();
+        }
     }
 
     void OnRandomSeedButtonClick()
@@ -289,7 +268,7 @@ public class MazeMenuController : MonoBehaviour
         if (mazeGenerator != null)
         {
             // Генерируем случайный seed
-            int randomSeed = new System.Random().Next();
+            int randomSeed = new System.Random().Next(1000, 999999);
 
             if (seedInputField != null)
             {
@@ -301,8 +280,50 @@ public class MazeMenuController : MonoBehaviour
                 useRandomSeedToggle.isOn = false;
             }
 
+            mazeGenerator.SetSeed(randomSeed);
             UpdateCurrentSeedText();
+
+            Debug.Log($"🎲 Сгенерирован новый seed: {randomSeed}");
         }
+    }
+
+    void OnSeedInputChanged(string value)
+    {
+        if (int.TryParse(value, out int seed))
+        {
+            if (useRandomSeedToggle != null)
+            {
+                useRandomSeedToggle.isOn = false;
+            }
+
+            if (mazeGenerator != null)
+            {
+                mazeGenerator.SetSeed(seed);
+                UpdateCurrentSeedText();
+            }
+        }
+    }
+
+    void OnRandomSeedToggleChanged(bool isRandom)
+    {
+        UpdateCurrentSeedText();
+    }
+
+    void ApplySettingsToMazeGenerator()
+    {
+        // Здесь можно добавить другие настройки если нужно
+        // Сейчас работаем только с seed
+
+        if (seedInputField != null && useRandomSeedToggle != null)
+        {
+            if (!useRandomSeedToggle.isOn && int.TryParse(seedInputField.text, out int seed))
+            {
+                mazeGenerator.SetSeed(seed);
+            }
+            mazeGenerator.useRandomSeed = useRandomSeedToggle.isOn;
+        }
+
+        Debug.Log("⚙️ Настройки seed применены");
     }
 
     void UpdateCurrentSeedText()
@@ -311,7 +332,7 @@ public class MazeMenuController : MonoBehaviour
         {
             if (mazeGenerator.useRandomSeed)
             {
-                currentSeedText.text = "Seed: Случайный";
+                currentSeedText.text = "Seed: 🎲 Случайный";
             }
             else
             {
@@ -320,111 +341,20 @@ public class MazeMenuController : MonoBehaviour
         }
     }
 
-    void ToggleMenu()
-    {
-        isMenuVisible = !isMenuVisible;
-
-        if (fadeCoroutine != null)
-            StopCoroutine(fadeCoroutine);
-
-        fadeCoroutine = StartCoroutine(FadeMenu(isMenuVisible));
-    }
-
-    IEnumerator FadeMenu(bool show)
-    {
-        float targetAlpha = show ? 1 : 0;
-        float startAlpha = menuCanvasGroup.alpha;
-        float elapsedTime = 0;
-
-        Vector2 startPos = menuPanel.anchoredPosition;
-        Vector2 targetPos = show ? menuVisiblePosition : menuHiddenPosition;
-
-        menuCanvasGroup.interactable = show;
-        menuCanvasGroup.blocksRaycasts = show;
-
-        while (elapsedTime < fadeDuration)
-        {
-            elapsedTime += Time.deltaTime;
-            float t = elapsedTime / fadeDuration;
-
-            menuCanvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
-            menuPanel.anchoredPosition = Vector2.Lerp(startPos, targetPos, t);
-
-            yield return null;
-        }
-
-        menuCanvasGroup.alpha = targetAlpha;
-        menuPanel.anchoredPosition = targetPos;
-
-        fadeCoroutine = null;
-    }
-
-    void ResetToDefaults()
-    {
-        Debug.Log("🔄 Сброс настроек к значениям по умолчанию");
-        ApplyDefaultSettingsToUI();
-        ApplySettingsToMazeGenerator(); // Только один вызов этого метода
-    }
-
-    void OnChunkSizeChanged(string value)
-    {
-        if (int.TryParse(value, out int intValue))
-        {
-            intValue = Mathf.Clamp(intValue, 2, 10);
-            chunkSizeInput.text = intValue.ToString();
-        }
-    }
-
-    void OnMazeWidthChanged(string value)
-    {
-        if (int.TryParse(value, out int intValue))
-        {
-            intValue = Mathf.Clamp(intValue, 1, 10);
-            mazeWidthInput.text = intValue.ToString();
-        }
-    }
-
-    void OnMazeHeightChanged(string value)
-    {
-        if (int.TryParse(value, out int intValue))
-        {
-            intValue = Mathf.Clamp(intValue, 1, 10);
-            mazeHeightInput.text = intValue.ToString();
-        }
-    }
-
+    // Обновление для отладки
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Escape))
+        // Горячие клавиши для тестирования
+        if (Input.GetKeyDown(KeyCode.F5))
         {
-            ToggleMenu();
-        }
-
-        if (Input.GetKeyDown(KeyCode.G) && Input.GetKey(KeyCode.LeftControl))
-        {
+            Debug.Log("🔧 Принудительный запуск генерации по F5");
             OnGenerateButtonClick();
         }
 
-        if (Input.GetKeyDown(KeyCode.R) && Input.GetKey(KeyCode.LeftControl))
+        if (Input.GetKeyDown(KeyCode.F6))
         {
-            OnRestartButtonClick();
+            Debug.Log("🔧 Проверка кнопок");
+            FindAllUIElements();
         }
-    }
-
-    public void ShowMenu()
-    {
-        if (!isMenuVisible)
-            ToggleMenu();
-    }
-
-    public void HideMenu()
-    {
-        if (isMenuVisible)
-            ToggleMenu();
-    }
-
-    public bool IsMenuVisible
-    {
-        get { return isMenuVisible; }
     }
 }
