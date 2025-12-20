@@ -269,7 +269,7 @@ public class CarController : MonoBehaviour
 
     public void SetCarPosition(int chunkX, int chunkZ, int cellX, int cellZ)
     {
-        if (mazeGenerator != null && carInstance != null)
+        if (mazeGenerator != null && carInstance != null && mazeData != null && nodeMap != null)
         {
             Vector3 position = mazeGenerator.GetCarWorldPosition(chunkX, chunkZ, cellX, cellZ);
 
@@ -495,6 +495,10 @@ public class CarController : MonoBehaviour
 
     private Vector2Int GetCurrentGlobalPosition()
     {
+        if (currentNode == null || mazeData == null)
+        {
+            return Vector2Int.zero;
+        }
         return new Vector2Int(
             currentNode.chunkX * mazeData.ChunkSize + currentNode.cellX,
             currentNode.chunkZ * mazeData.ChunkSize + currentNode.cellZ
@@ -503,6 +507,11 @@ public class CarController : MonoBehaviour
 
     private bool CanMoveToDirection(Vector2Int direction)
     {
+        if (currentNode == null || mazeData == null || nodeMap == null)
+        {
+            return false;
+        }
+
         Vector2Int currentGlobal = GetCurrentGlobalPosition();
         Vector2Int targetGlobal = currentGlobal + direction;
 
@@ -533,7 +542,7 @@ public class CarController : MonoBehaviour
 
     private void DebugWallsAroundCar()
     {
-        if (currentNode == null) return;
+        if (currentNode == null || mazeData == null || nodeMap == null) return;
 
         Vector2Int currentGlobal = GetCurrentGlobalPosition();
 
@@ -651,19 +660,30 @@ public class CarController : MonoBehaviour
     }
     public bool CheckWallAhead()
     {
-        // Используй существующую логику из CanMoveToDirection
+        if (!IsCarReady() || mazeData == null || nodeMap == null)
+        {
+            return true; // Если не готов, считаем что стена есть
+        }
         Vector2Int direction = directionVectors[currentDirection];
         return !CanMoveToDirection(direction);
     }
 
     public bool CheckWallLeft()
     {
+        if (!IsCarReady() || mazeData == null || nodeMap == null)
+        {
+            return true; // Если не готов, считаем что стена есть
+        }
         Vector2Int direction = directionVectors[(currentDirection + 3) % 4]; // Поворот налево
         return !CanMoveToDirection(direction);
     }
 
     public bool CheckWallRight()
     {
+        if (!IsCarReady() || mazeData == null || nodeMap == null)
+        {
+            return true; // Если не готов, считаем что стена есть
+        }
         Vector2Int direction = directionVectors[(currentDirection + 1) % 4]; // Поворот направо
         return !CanMoveToDirection(direction);
     }

@@ -84,17 +84,26 @@ public class MazeData
 
         bool hasWall = wallFromAtoB || wallFromBtoA;
 
-        Debug.Log($"🔍 Wall check: {fromGlobal} -> {toGlobal}");
-        Debug.Log($"   A->B: {wallFromAtoB}, B->A: {wallFromBtoA}");
-        Debug.Log($"   Result: {(hasWall ? "BLOCKED" : "ALLOWED")}");
+        // Debug.Log убран для производительности - вызывается очень часто
+        // Раскомментируйте для отладки:
+        // Debug.Log($"🔍 Wall check: {fromGlobal} -> {toGlobal} Result: {(hasWall ? "BLOCKED" : "ALLOWED")}");
 
         return hasWall;
     }
 
     public bool CheckWallInDirection(Vector2Int globalPos, Vector2Int direction)
     {
-        Vector2Int chunkPos = new Vector2Int(globalPos.x / ChunkSize, globalPos.y / ChunkSize);
-        Vector2Int cellPos = new Vector2Int(globalPos.x % ChunkSize, globalPos.y % ChunkSize);
+        // Правильное вычисление для отрицательных координат
+        // Используем Mathf.FloorToInt для правильного деления отрицательных чисел
+        int chunkX = Mathf.FloorToInt((float)globalPos.x / ChunkSize);
+        int chunkZ = Mathf.FloorToInt((float)globalPos.y / ChunkSize);
+        Vector2Int chunkPos = new Vector2Int(chunkX, chunkZ);
+        
+        // Правильное вычисление cellPos для отрицательных координат
+        // Используем формулу: (x % size + size) % size для корректной работы с отрицательными числами
+        int cellX = ((globalPos.x % ChunkSize) + ChunkSize) % ChunkSize;
+        int cellZ = ((globalPos.y % ChunkSize) + ChunkSize) % ChunkSize;
+        Vector2Int cellPos = new Vector2Int(cellX, cellZ);
 
         if (!ChunkExists(chunkPos.x, chunkPos.y))
             return true;
@@ -195,7 +204,7 @@ public class MazeChunk
         if (x >= 0 && x < Size && y >= 0 && y <= Size)
         {
             HorizontalWalls[x, y] = false;
-            Debug.Log($"➖ Removed H wall at [{x}, {y}] in chunk {ChunkPosition}");
+            // Debug.Log убран для производительности - вызывается очень часто
         }
         else
         {
@@ -208,7 +217,7 @@ public class MazeChunk
         if (x >= 0 && x <= Size && y >= 0 && y < Size)
         {
             VerticalWalls[x, y] = false;
-            Debug.Log($"➖ Removed V wall at [{x}, {y}] in chunk {ChunkPosition}");
+            // Debug.Log убран для производительности - вызывается очень часто
         }
         else
         {
