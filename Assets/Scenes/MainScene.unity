@@ -1027,6 +1027,51 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   movementLog: []
+--- !u!1 &143530384
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 143530386}
+  - component: {fileID: 143530385}
+  m_Layer: 0
+  m_Name: ApiClient
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &143530385
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 143530384}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9b7f9d1a51fbbe249b481eb60a964429, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  baseUrl: http://localhost:5081
+--- !u!4 &143530386
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 143530384}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -255.751, y: 80.574425, z: 665.4066}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &169021939
 GameObject:
   m_ObjectHideFlags: 0
@@ -7835,7 +7880,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   recorder: {fileID: 124634172}
   car: {fileID: 1162926878}
+  mazeGenerator: {fileID: 1172131115}
   replayUrl: http://localhost:8080/replay
+  attemptsApi: {fileID: 143530385}
+  waitAttemptSeconds: 3
 --- !u!4 &1618452523
 Transform:
   m_ObjectHideFlags: 0
@@ -10154,3 +10202,4 @@ SceneRoots:
   - {fileID: 1888601691}
   - {fileID: 124634171}
   - {fileID: 1618452523}
+  - {fileID: 143530386}

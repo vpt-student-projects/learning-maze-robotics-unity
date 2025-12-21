@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\user\\Desktop\\MazeAttemptsApi\\MazeAttemptsApi.csproj": {}
+    "C:\\Users\\user\\Source\\Repos\\delivery\\learning-maze-robotics-unity\\MazeAttemptsApi\\MazeAttemptsApi.csproj": {}
   },
   "projects": {
-    "C:\\Users\\user\\Desktop\\MazeAttemptsApi\\MazeAttemptsApi.csproj": {
+    "C:\\Users\\user\\Source\\Repos\\delivery\\learning-maze-robotics-unity\\MazeAttemptsApi\\MazeAttemptsApi.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\user\\Desktop\\MazeAttemptsApi\\MazeAttemptsApi.csproj",
+        "projectUniqueName": "C:\\Users\\user\\Source\\Repos\\delivery\\learning-maze-robotics-unity\\MazeAttemptsApi\\MazeAttemptsApi.csproj",
         "projectName": "MazeAttemptsApi",
-        "projectPath": "C:\\Users\\user\\Desktop\\MazeAttemptsApi\\MazeAttemptsApi.csproj",
+        "projectPath": "C:\\Users\\user\\Source\\Repos\\delivery\\learning-maze-robotics-unity\\MazeAttemptsApi\\MazeAttemptsApi.csproj",
         "packagesPath": "C:\\Users\\user\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\user\\Desktop\\MazeAttemptsApi\\obj\\",
+        "outputPath": "C:\\Users\\user\\Source\\Repos\\delivery\\learning-maze-robotics-unity\\MazeAttemptsApi\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

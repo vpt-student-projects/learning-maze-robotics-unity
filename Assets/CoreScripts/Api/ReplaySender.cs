@@ -10,16 +10,14 @@ public class ReplaySender : MonoBehaviour
     public CarRecorderAPI recorder;
     public CarController car;
 
-    [Header("Replay API (как было раньше)")]
+    [Header("Maze")]
+    public MazeGenerator mazeGenerator;
+
+    [Header("Replay API")]
     public string replayUrl = "http://localhost:8080/replay";
 
-    [Header("DB API (сохранение попыток)")]
+    [Header("DB API")]
     public AttemptsApiClient attemptsApi;
-
-    [Header("Attempt data (пока вручную; потом привяжем к MazeGenerator)")]
-    public int mazeSeed = 123;
-    public int mazeWidth = 20;
-    public int mazeHeight = 20;
 
     [Header("Upload settings")]
     public float waitAttemptSeconds = 3f;
@@ -30,62 +28,55 @@ public class ReplaySender : MonoBehaviour
         public MovementRecord[] records;
     }
 
-    // 🔴 КНОПКА REC
+    // 🔴 REC
     public void StartRecording()
     {
-        if (recorder == null || car == null)
+        if (recorder == null || car == null || mazeGenerator == null)
         {
-            Debug.LogError("ReplaySender: recorder or car not set in Inspector!");
+            Debug.LogError("ReplaySender: recorder / car / mazeGenerator not set!");
             return;
         }
 
-        // 1) Создаём attempt в БД (если клиент назначен)
+        // 🔑 БЕРЁМ РЕАЛЬНЫЕ ДАННЫЕ ЛАБИРИНТА
+        int seed = mazeGenerator.GetCurrentSeed();
+        int width = mazeGenerator.mazeSizeInChunks.x;
+        int height = mazeGenerator.mazeSizeInChunks.y;
+
+
+        Debug.Log($"🧩 Start attempt | seed={seed}, size={width}x{height}");
+
         if (attemptsApi != null)
         {
-            attemptsApi.CreateAttempt(mazeSeed, mazeWidth, mazeHeight);
+            attemptsApi.CreateAttempt(seed, width, height);
         }
 
-        // 2) Начинаем запись
         recorder.ClearLog();
         car.isRecording = true;
-
-        Debug.Log("ReplaySender: Recording ON");
     }
 
-    // ⏹ КНОПКА STOP
+    // ⏹ STOP
     public void StopRecording()
     {
         if (recorder == null || car == null)
-        {
-            Debug.LogError("ReplaySender: recorder or car not set in Inspector!");
             return;
-        }
 
         car.isRecording = false;
-        Debug.Log("ReplaySender: Recording OFF");
 
-        // Сохраняем в БД (если клиент назначен)
         if (attemptsApi != null)
         {
-            StartCoroutine(WaitAttemptAndUploadToDb());
+            StartCoroutine(WaitAttemptAndUpload());
         }
     }
 
-    // ▶ КНОПКА REPLAY (как раньше)
+    // ▶ REPLAY
     public void SendReplay()
     {
         if (recorder == null)
-        {
-            Debug.LogError("ReplaySender: recorder not set in Inspector!");
             return;
-        }
 
         var log = recorder.GetMovementLog();
         if (log == null || log.Count == 0)
-        {
-            Debug.LogWarning("ReplaySender: movementLog is empty (nothing to replay).");
             return;
-        }
 
         var wrapper = new ReplayWrapper { records = log.ToArray() };
         string json = JsonUtility.ToJson(wrapper);
@@ -95,39 +86,21 @@ public class ReplaySender : MonoBehaviour
 
     private IEnumerator PostReplay(string json)
     {
-        using (var req = new UnityWebRequest(replayUrl, "POST"))
+        using var req = new UnityWebRequest(replayUrl, "POST");
+        req.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+        req.downloadHandler = new DownloadHandlerBuffer();
+        req.SetRequestHeader("Content-Type", "application/json");
+
+        yield return req.SendWebRequest();
+
+        if (req.result != UnityWebRequest.Result.Success)
         {
-            byte[] body = Encoding.UTF8.GetBytes(json);
-            req.uploadHandler = new UploadHandlerRaw(body);
-            req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("Content-Type", "application/json");
-
-            yield return req.SendWebRequest();
-
-            if (req.result != UnityWebRequest.Result.Success)
-            {
-                Debug.LogError("ReplaySender POST error: " + req.error);
-                Debug.LogError(req.downloadHandler.text);
-                Debug.LogError("Проверь: запущен ли твой replay-сервер на 8080 и правильный ли URL /replay");
-            }
-            else
-            {
-                Debug.Log("ReplaySender: Replay sent OK");
-            }
+            Debug.LogError("ReplaySender replay error: " + req.error);
         }
     }
 
-    private IEnumerator WaitAttemptAndUploadToDb()
+    private IEnumerator WaitAttemptAndUpload()
     {
-        // Если записи нет — не отправляем
-        var log = recorder.GetMovementLog();
-        if (log == null || log.Count == 0)
-        {
-            Debug.LogWarning("ReplaySender: movementLog is empty (nothing to upload).");
-            yield break;
-        }
-
-        // Ждём пока сервер БД вернёт attempt_id
         float t = 0f;
         while (!attemptsApi.IsAttemptReady && t < waitAttemptSeconds)
         {
@@ -137,12 +110,14 @@ public class ReplaySender : MonoBehaviour
 
         if (!attemptsApi.IsAttemptReady)
         {
-            Debug.LogError("ReplaySender: attempt_id not ready. Actions NOT uploaded to DB. " +
-                           "Проверь, запущен ли DB API (localhost:5081) и baseUrl в AttemptsApiClient.");
+            Debug.LogError("ReplaySender: attempt_id not ready");
             yield break;
         }
 
+        var log = recorder.GetMovementLog();
+        if (log == null || log.Count == 0)
+            yield break;
+
         attemptsApi.UploadActions(log.ToArray());
-        Debug.Log($"ReplaySender: Upload to DB requested. attempt_id={attemptsApi.CurrentAttemptId}, records={log.Count}");
     }
 }
