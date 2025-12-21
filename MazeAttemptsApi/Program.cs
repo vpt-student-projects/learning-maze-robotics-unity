@@ -1,15 +1,18 @@
-using Npgsql;
+using System;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Поменяй YOUR_PASS и YOUR_DB
+// Строка подключения к Postgres: берём из appsettings.json (ConnectionStrings:Postgres)
 var connString =
     builder.Configuration.GetConnectionString("Postgres")
-    ?? "Host=localhost;Port=5432;Username=postgres;Password=YOUR_PASS;Database=YOUR_DB;";
+    ?? "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=maze_db;";
 
+// CORS чтобы Unity мог стучаться без проблем
 builder.Services.AddCors(o =>
 {
     o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
@@ -18,10 +21,10 @@ builder.Services.AddCors(o =>
 var app = builder.Build();
 app.UseCors();
 
-// Проверка что сервер жив
+// -------------------- HEALTH --------------------
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-// Создать попытку
+// -------------------- CREATE ATTEMPT --------------------
 app.MapPost("/attempts", async (CreateAttemptDto dto) =>
 {
     await using var conn = new NpgsqlConnection(connString);
@@ -44,7 +47,7 @@ app.MapPost("/attempts", async (CreateAttemptDto dto) =>
     return Results.Ok(new AttemptCreatedDto(attemptId));
 });
 
-// Добавить действия (пачкой)
+// -------------------- INSERT ACTIONS (BATCH) --------------------
 app.MapPost("/attempts/{attemptId:int}/actions", async (int attemptId, ActionsWrapperDto wrapper) =>
 {
     if (wrapper?.records == null || wrapper.records.Length == 0)
@@ -87,5 +90,81 @@ app.MapPost("/attempts/{attemptId:int}/actions", async (int attemptId, ActionsWr
     return Results.Ok(new { inserted });
 });
 
-// фиксируем порт
+// -------------------- LATEST ATTEMPTS (for main menu) --------------------
+// GET /attempts/latest?limit=10
+app.MapGet("/attempts/latest", async (int? limit) =>
+{
+    int take = Math.Clamp(limit ?? 10, 1, 50);
+
+    await using var conn = new NpgsqlConnection(connString);
+    await conn.OpenAsync();
+
+    const string sql = @"
+        SELECT
+            a.id as attempt_id,
+            a.maze_seed,
+            a.maze_width,
+            a.maze_height,
+            a.created_at,
+            COALESCE(MAX(c.time_sec), 0) as duration_sec
+        FROM attempts a
+        LEFT JOIN car_actions c ON c.attempt_id = a.id
+        GROUP BY a.id
+        ORDER BY a.id DESC
+        LIMIT @take;
+    ";
+
+    await using var cmd = new NpgsqlCommand(sql, conn);
+    cmd.Parameters.AddWithValue("take", take);
+
+    var list = new List<AttemptListItemDto>();
+    await using var reader = await cmd.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        list.Add(new AttemptListItemDto(
+            reader.GetInt32(0),
+            reader.GetInt32(1),
+            reader.GetInt32(2),
+            reader.GetInt32(3),
+            reader.GetDateTime(4),
+            reader.GetFloat(5)
+        ));
+    }
+
+    return Results.Ok(new AttemptsListWrapper(list.ToArray()));
+});
+
+// -------------------- GET ACTIONS BY ATTEMPT (for replay) --------------------
+app.MapGet("/attempts/{attemptId:int}/actions", async (int attemptId) =>
+{
+    await using var conn = new NpgsqlConnection(connString);
+    await conn.OpenAsync();
+
+    const string sql = @"
+        SELECT time_sec, action, pos_x, pos_y
+        FROM car_actions
+        WHERE attempt_id = @id
+        ORDER BY time_sec ASC;
+    ";
+
+    await using var cmd = new NpgsqlCommand(sql, conn);
+    cmd.Parameters.AddWithValue("id", attemptId);
+
+    var records = new List<ActionDto>();
+    await using var reader = await cmd.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        records.Add(new ActionDto(
+            reader.GetFloat(0),
+            reader.GetString(1),
+            reader.IsDBNull(2) ? null : reader.GetInt32(2),
+            reader.IsDBNull(3) ? null : reader.GetInt32(3)
+        ));
+    }
+
+    return Results.Ok(new ActionsWrapperDto(records.ToArray()));
+});
+
+// -------------------- RUN --------------------
+// Фиксированный порт
 app.Run("http://0.0.0.0:5081");
