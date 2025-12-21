@@ -32,6 +32,24 @@ public class CarAPIController : MonoBehaviour
     private float cachedTime = 0f;
     private Vector3 cachedCarPosition = Vector3.zero;
     private bool cacheInitialized = false;
+    // время начала логирования действий
+    private float logStartTime = -1f;
+
+
+    [Serializable]
+    public class MovementRecord
+    {
+        public string action;
+        public string timestamp;
+
+        // НОВОЕ: время в секундах от начала записи
+        public float time_sec;
+
+        public Vector2Int position; // глобальная позиция машины
+    }
+
+
+    private List<MovementRecord> movementLog = new List<MovementRecord>();
 
     public void SetCarController(CarController controller)
     {
@@ -45,6 +63,7 @@ public class CarAPIController : MonoBehaviour
             }
         }
     }
+
 
     void Start()
     {
@@ -181,8 +200,7 @@ public class CarAPIController : MonoBehaviour
     private System.Collections.IEnumerator StartServerCoroutine()
     {
         httpListener = new HttpListener();
-        httpListener.Prefixes.Add($"http://localhost:{port}/");
-        httpListener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        httpListener.Prefixes.Add($"http://*:{port}/");
 
         try
         {
@@ -247,6 +265,63 @@ public class CarAPIController : MonoBehaviour
             await SendErrorResponse(response, 500, $"Internal server error: {ex.Message}");
         }
     }
+    private System.Collections.IEnumerator ReplayMovements(MovementRecord[] records)
+    {
+        float lastTime = 0f;
+
+        foreach (var rec in records)
+        {
+            float wait = Mathf.Max(0f, rec.time_sec - lastTime);
+            lastTime = rec.time_sec;
+
+            yield return new WaitForSeconds(wait);
+
+            switch (rec.action)
+            {
+                case "move_forward": carController.MoveForward(); break;
+                case "move_backward": carController.MoveBackward(); break;
+                case "turn_left": carController.TurnLeft(); break;
+                case "turn_right": carController.TurnRight(); break;
+            }
+        }
+    }
+
+
+    private async Task<string> HandleReplayRequest(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        try
+        {
+            string body;
+            using (var reader = new System.IO.StreamReader(request.InputStream, request.ContentEncoding))
+            {
+                body = await reader.ReadToEndAsync();
+            }
+
+            var wrapper = JsonUtility.FromJson<MovementRecordListWrapper>(body);
+            if (wrapper?.records == null || wrapper.records.Length == 0)
+            {
+                response.StatusCode = 400;
+                return "{\"status\":\"error\",\"message\":\"No actions provided\"}";
+            }
+
+            mainThreadActions.Enqueue(() => StartCoroutine(ReplayMovements(wrapper.records)));
+
+            return "{\"status\":\"success\",\"message\":\"Replay started\"}";
+        }
+        catch (Exception ex)
+        {
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    // Обёртка для массива движений
+    [Serializable]
+    private class MovementRecordListWrapper
+    {
+        public MovementRecord[] records;
+    }
+
 
     private async Task<string> HandleRequest(HttpListenerRequest request, HttpListenerResponse response)
     {
@@ -255,6 +330,11 @@ public class CarAPIController : MonoBehaviour
 
         try
         {
+            if (path.Equals("/replay", StringComparison.OrdinalIgnoreCase) && method == "POST")
+            {
+                return await HandleReplayRequest(request, response);
+            }
+
             if (path.Equals("/health", StringComparison.OrdinalIgnoreCase) && method == "GET")
             {
                 return GetHealthStatus();
@@ -701,19 +781,38 @@ public class CarAPIController : MonoBehaviour
             switch (path)
             {
                 case "/car/turn/left" when method == "POST":
-                    mainThreadActions.Enqueue(() => carController.TurnLeft());
+                    mainThreadActions.Enqueue(() =>
+                    {
+                        carController.TurnLeft();
+                        LogCarAction("turn_left");
+                    });
                     return $"{{\"status\":\"success\",\"action\":\"turn_left\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
+
                 case "/car/turn/right" when method == "POST":
-                    mainThreadActions.Enqueue(() => carController.TurnRight());
+                    mainThreadActions.Enqueue(() =>
+                    {
+                        carController.TurnRight();
+                        LogCarAction("turn_right");
+                    });
                     return $"{{\"status\":\"success\",\"action\":\"turn_right\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
+
                 case "/car/move/forward" when method == "POST":
-                    mainThreadActions.Enqueue(() => carController.MoveForward());
+                    mainThreadActions.Enqueue(() =>
+                    {
+                        carController.MoveForward();
+                        LogCarAction("move_forward");
+                    });
                     return $"{{\"status\":\"success\",\"action\":\"move_forward\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
+
                 case "/car/move/backward" when method == "POST":
-                    mainThreadActions.Enqueue(() => carController.MoveBackward());
+                    mainThreadActions.Enqueue(() =>
+                    {
+                        carController.MoveBackward();
+                        LogCarAction("move_backward");
+                    });
                     return $"{{\"status\":\"success\",\"action\":\"move_backward\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
                 case "/car/restart" when method == "POST": // Уже добавлено выше, но оставляем для совместимости
@@ -777,6 +876,28 @@ public class CarAPIController : MonoBehaviour
             return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
         }
     }
+
+    private void LogCarAction(string action)
+    {
+        if (carController == null) return;
+
+        Vector2Int chunk = carController.GetCurrentChunkCoordinates();
+        Vector2Int cell = carController.GetCurrentCellCoordinates();
+        int chunkSize = GetMazeChunkSize();
+        Vector2Int globalPos = new Vector2Int(chunk.x * chunkSize + cell.x, chunk.y * chunkSize + cell.y);
+
+        if (logStartTime < 0f)
+            logStartTime = Time.time;
+
+        movementLog.Add(new MovementRecord
+        {
+            action = action,
+            timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            time_sec = Time.time - logStartTime,
+            position = globalPos
+        });
+    }
+
 
     private string GetCarPosition()
     {
