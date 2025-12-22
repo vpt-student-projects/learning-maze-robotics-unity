@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9e677971b1463f548b880830a54bea8f, type: 3}
   m_Name: BlockRight
   m_EditorClassIdentifier: 
-  type: 3
-  title: "\u041D\u0430\u043B\u0435\u0432\u043E"
+  type: 4
+  title: "\u041D\u0430\u043F\u0440\u0430\u0432\u043E"
   icon: {fileID: 0}
