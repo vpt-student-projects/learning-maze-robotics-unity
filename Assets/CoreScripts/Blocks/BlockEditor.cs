@@ -298,10 +298,7 @@ public class BlockEditor : MonoBehaviour
         {
             turnBlock.carController = carController;
         }
-        else if (block is IfBlock ifBlock)
-        {
-            ifBlock.carController = carController;
-        }
+
     }
     
     // === ВЫПОЛНЕНИЕ ПРОГРАММЫ ===

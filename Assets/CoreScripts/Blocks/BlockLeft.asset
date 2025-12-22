@@ -10,8 +10,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9e677971b1463f548b880830a54bea8f, type: 3}
-  m_Name: BlockDefinition
+  m_Name: BlockLeft
   m_EditorClassIdentifier: 
-  type: 1
-  title: "\u0412\u043F\u0435\u0440\u0435\u0434"
+  type: 3
+  title: "\u041D\u0430\u043B\u0435\u0432\u043E"
   icon: {fileID: 0}

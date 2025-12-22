@@ -2,12 +2,13 @@ using UnityEngine;
 
 public enum BlockType
 {
+    Start,
     MoveForward,
     MoveBackward,
     TurnLeft,
-    TurnRight,
-    // Потом добавишь: Loop, IfWallAhead, etc
+    TurnRight
 }
+
 
 [CreateAssetMenu(menuName = "Blocks/Block Definition", fileName = "BlockDefinition")]
 public class BlockDefinition : ScriptableObject
