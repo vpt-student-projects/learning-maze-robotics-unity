@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MazeAttemptsApi")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c07ed86eb229d68844f0eaf33c506ee5b6fc067d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7382403b852e4d366890f9cfa32a2de23099c045")]
 [assembly: System.Reflection.AssemblyProductAttribute("MazeAttemptsApi")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MazeAttemptsApi")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
