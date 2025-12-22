@@ -2116,6 +2116,53 @@ RectTransform:
   m_AnchoredPosition: {x: -680.00006, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &394269398
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 394269400}
+  - component: {fileID: 394269399}
+  m_Layer: 0
+  m_Name: AutoReplay
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &394269399
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 394269398}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8875a6e2c74ac604fbe365133107bd49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  mazeGenerator: {fileID: 1172131115}
+  dbApiBaseUrl: http://localhost:5081
+  replayUrl: http://localhost:8080/replay
+--- !u!4 &394269400
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 394269398}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 530.8331, y: 262.58713, z: 669.3642}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &395438505
 GameObject:
   m_ObjectHideFlags: 0
@@ -6137,7 +6184,7 @@ MonoBehaviour:
   wallHeight: 3
   wallThickness: 0.1
   mazeSeed: 0
-  useRandomSeed: 1
+  useRandomSeed: 0
   destroyExistingCarObjects: 0
   cameraController: {fileID: 330585548}
   mazeTimer: {fileID: 261229978}
@@ -7881,9 +7928,7 @@ MonoBehaviour:
   recorder: {fileID: 124634172}
   car: {fileID: 1162926878}
   mazeGenerator: {fileID: 1172131115}
-  replayUrl: http://localhost:8080/replay
-  attemptsApi: {fileID: 143530385}
-  waitAttemptSeconds: 3
+  dbApiBaseUrl: http://localhost:5081
 --- !u!4 &1618452523
 Transform:
   m_ObjectHideFlags: 0
@@ -10203,3 +10248,4 @@ SceneRoots:
   - {fileID: 124634171}
   - {fileID: 1618452523}
   - {fileID: 143530386}
+  - {fileID: 394269400}

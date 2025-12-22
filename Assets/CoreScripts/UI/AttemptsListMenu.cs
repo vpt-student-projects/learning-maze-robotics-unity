@@ -1,31 +1,25 @@
-using System;
+п»їusing System;
 using System.Collections;
-using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 
 public class AttemptsListMenu : MonoBehaviour
 {
-    [Header("API")]
+    [Header("API (DB server)")]
     public string dbApiBaseUrl = "http://localhost:5081";
-    public string replayUrl = "http://localhost:8080/replay";
 
     [Header("UI")]
-    public Transform contentParent;   // ScrollView / Viewport / Content
-    public Button buttonPrefab;       // Prefab кнопки попытки
-
-    [Header("Options")]
+    public Transform contentParent;   // ScrollView/Viewport/Content
+    public Button buttonPrefab;       // Prefab РєРЅРѕРїРєРё СЃС‚СЂРѕРєРё РїРѕРїС‹С‚РєРё
     public int limit = 10;
 
-    // ===== DTO =====
+    [Header("Scene")]
+    public string gameSceneName = "Scene"; // <-- РїРѕСЃС‚Р°РІСЊ РёРјСЏ СЃС†РµРЅС‹ СЃ РјР°С€РёРЅРєРѕР№/Р»Р°Р±РёСЂРёРЅС‚РѕРј
 
-    [Serializable]
-    public class AttemptsListWrapper
-    {
-        public AttemptItem[] items;
-    }
+    [Serializable] public class AttemptsListWrapper { public AttemptItem[] items; }
 
     [Serializable]
     public class AttemptItem
@@ -36,48 +30,21 @@ public class AttemptsListMenu : MonoBehaviour
         public int maze_height;
         public string created_at;
         public float duration_sec;
+
+        // вњ… РЅРѕРІС‹Рµ РїРѕР»СЏ РёР· Р‘Р”
+        public bool create_finish_area;
+        public bool use_right_hand_rule;
     }
 
-    [Serializable]
-    public class ActionsWrapper
-    {
-        public ActionItem[] records;
-    }
+    void OnEnable() => Refresh();
 
-    [Serializable]
-    public class ActionItem
-    {
-        public float time_sec;
-        public string action;
-        public int pos_x;
-        public int pos_y;
-    }
-
-    [Serializable]
-    public class ReplayWrapper
-    {
-        public MovementRecord[] records;
-    }
-
-    // =================
-
-    void OnEnable()
-    {
-        Refresh();
-    }
-
-    public void Refresh()
-    {
-        StartCoroutine(LoadLatestAttempts());
-    }
+    public void Refresh() => StartCoroutine(LoadLatestAttempts());
 
     private IEnumerator LoadLatestAttempts()
     {
-        // Очистка старых кнопок
+        // РѕС‡РёСЃС‚РєР°
         for (int i = contentParent.childCount - 1; i >= 0; i--)
-        {
             Destroy(contentParent.GetChild(i).gameObject);
-        }
 
         string url = $"{dbApiBaseUrl}/attempts/latest?limit={limit}";
         using var req = UnityWebRequest.Get(url);
@@ -91,13 +58,10 @@ public class AttemptsListMenu : MonoBehaviour
         }
 
         var data = JsonUtility.FromJson<AttemptsListWrapper>(req.downloadHandler.text);
-        Debug.Log($"[AttemptsListMenu] items count = {data?.items?.Length}");
         if (data?.items == null) yield break;
 
         foreach (var a in data.items)
         {
-            Debug.Log($"[Attempt] seed={a.maze_seed}, size={a.maze_width}x{a.maze_height}, time={a.duration_sec}");
-
             var btn = Instantiate(buttonPrefab, contentParent);
 
             var txt = btn.GetComponentInChildren<TextMeshProUGUI>();
@@ -106,66 +70,21 @@ public class AttemptsListMenu : MonoBehaviour
                 txt.text =
                     $"Seed {a.maze_seed} | {a.maze_width}x{a.maze_height} | {a.duration_sec:0.0}s";
             }
-            else
+
+            int id = a.attempt_id;
+            int seed = a.maze_seed;
+            int w = a.maze_width;
+            int h = a.maze_height;
+
+            bool finishCenter = a.create_finish_area;
+            bool rightHand = a.use_right_hand_rule;
+
+            btn.onClick.AddListener(() =>
             {
-                Debug.LogError("TextMeshProUGUI NOT FOUND in button prefab!");
-            }
-
-            int capturedId = a.attempt_id;
-            btn.onClick.AddListener(() => StartCoroutine(PlayAttempt(capturedId)));
-        }
-
-    }
-
-    private IEnumerator PlayAttempt(int attemptId)
-    {
-        // 1) Получаем действия попытки
-        string url = $"{dbApiBaseUrl}/attempts/{attemptId}/actions";
-        using var req = UnityWebRequest.Get(url);
-        yield return req.SendWebRequest();
-
-        if (req.result != UnityWebRequest.Result.Success)
-        {
-            Debug.LogError("Load actions error: " + req.error);
-            Debug.LogError(req.downloadHandler.text);
-            yield break;
-        }
-
-        var actions = JsonUtility.FromJson<ActionsWrapper>(req.downloadHandler.text);
-        if (actions?.records == null || actions.records.Length == 0)
-        {
-            Debug.LogWarning($"Attempt {attemptId} has no actions");
-            yield break;
-        }
-
-        // 2) Конвертация в MovementRecord[]
-        MovementRecord[] records = new MovementRecord[actions.records.Length];
-        for (int i = 0; i < actions.records.Length; i++)
-        {
-            var r = actions.records[i];
-            records[i] = new MovementRecord
-            {
-                action = r.action,
-                time_sec = r.time_sec,
-                position = new Vector2Int(r.pos_x, r.pos_y)
-            };
-        }
-
-        // 3) Отправка в replay-сервер Unity
-        var wrapper = new ReplayWrapper { records = records };
-        string json = JsonUtility.ToJson(wrapper);
-
-        using var post = new UnityWebRequest(replayUrl, "POST");
-        post.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
-        post.downloadHandler = new DownloadHandlerBuffer();
-        post.SetRequestHeader("Content-Type", "application/json");
-
-        yield return post.SendWebRequest();
-
-        if (post.result != UnityWebRequest.Result.Success)
-        {
-            Debug.LogError("Replay POST error: " + post.error);
-            Debug.LogError(post.downloadHandler.text);
+                // вњ… РїРµСЂРµРґР°С‘Рј РіР°Р»РѕС‡РєРё С‚РѕР¶Рµ
+                SelectedAttempt.Set(id, seed, w, h, finishCenter, rightHand);
+                SceneManager.LoadScene(gameSceneName);
+            });
         }
     }
 }

@@ -7,12 +7,11 @@ using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Строка подключения к Postgres: берём из appsettings.json (ConnectionStrings:Postgres)
+// строка подключения из appsettings.json (ConnectionStrings:Postgres)
 var connString =
     builder.Configuration.GetConnectionString("Postgres")
     ?? "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=maze_db;";
 
-// CORS чтобы Unity мог стучаться без проблем
 builder.Services.AddCors(o =>
 {
     o.AddDefaultPolicy(p => p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
@@ -25,14 +24,15 @@ app.UseCors();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
 // -------------------- CREATE ATTEMPT --------------------
+// Теперь сохраняем: seed + width/height + create_finish_area + use_right_hand_rule
 app.MapPost("/attempts", async (CreateAttemptDto dto) =>
 {
     await using var conn = new NpgsqlConnection(connString);
     await conn.OpenAsync();
 
     const string sql = @"
-        INSERT INTO attempts (maze_seed, maze_width, maze_height)
-        VALUES (@seed, @w, @h)
+        INSERT INTO attempts (maze_seed, maze_width, maze_height, create_finish_area, use_right_hand_rule)
+        VALUES (@seed, @w, @h, @finish, @right)
         RETURNING id;
     ";
 
@@ -40,6 +40,8 @@ app.MapPost("/attempts", async (CreateAttemptDto dto) =>
     cmd.Parameters.AddWithValue("seed", dto.maze_seed);
     cmd.Parameters.AddWithValue("w", dto.maze_width);
     cmd.Parameters.AddWithValue("h", dto.maze_height);
+    cmd.Parameters.AddWithValue("finish", dto.create_finish_area);
+    cmd.Parameters.AddWithValue("right", dto.use_right_hand_rule);
 
     var idObj = await cmd.ExecuteScalarAsync();
     int attemptId = Convert.ToInt32(idObj);
@@ -78,7 +80,6 @@ app.MapPost("/attempts/{attemptId:int}/actions", async (int attemptId, ActionsWr
             pAttempt.Value = attemptId;
             pTime.Value = r.time_sec;
             pAction.Value = r.action ?? "";
-
             pX.Value = (object?)r.pos_x ?? DBNull.Value;
             pY.Value = (object?)r.pos_y ?? DBNull.Value;
 
@@ -90,8 +91,9 @@ app.MapPost("/attempts/{attemptId:int}/actions", async (int attemptId, ActionsWr
     return Results.Ok(new { inserted });
 });
 
-// -------------------- LATEST ATTEMPTS (for main menu) --------------------
+// -------------------- LATEST ATTEMPTS (for menu) --------------------
 // GET /attempts/latest?limit=10
+// Возвращаем +create_finish_area +use_right_hand_rule
 app.MapGet("/attempts/latest", async (int? limit) =>
 {
     int take = Math.Clamp(limit ?? 10, 1, 50);
@@ -105,6 +107,8 @@ app.MapGet("/attempts/latest", async (int? limit) =>
             a.maze_seed,
             a.maze_width,
             a.maze_height,
+            a.create_finish_area,
+            a.use_right_hand_rule,
             a.created_at,
             COALESCE(MAX(c.time_sec), 0) as duration_sec
         FROM attempts a
@@ -119,15 +123,18 @@ app.MapGet("/attempts/latest", async (int? limit) =>
 
     var list = new List<AttemptListItemDto>();
     await using var reader = await cmd.ExecuteReaderAsync();
+
     while (await reader.ReadAsync())
     {
         list.Add(new AttemptListItemDto(
-            reader.GetInt32(0),
-            reader.GetInt32(1),
-            reader.GetInt32(2),
-            reader.GetInt32(3),
-            reader.GetDateTime(4),
-            reader.GetFloat(5)
+            attempt_id: reader.GetInt32(0),
+            maze_seed: reader.GetInt32(1),
+            maze_width: reader.GetInt32(2),
+            maze_height: reader.GetInt32(3),
+            create_finish_area: reader.GetBoolean(4),
+            use_right_hand_rule: reader.GetBoolean(5),
+            created_at: reader.GetDateTime(6),
+            duration_sec: reader.GetFloat(7)
         ));
     }
 
@@ -152,19 +159,18 @@ app.MapGet("/attempts/{attemptId:int}/actions", async (int attemptId) =>
 
     var records = new List<ActionDto>();
     await using var reader = await cmd.ExecuteReaderAsync();
+
     while (await reader.ReadAsync())
     {
         records.Add(new ActionDto(
-            reader.GetFloat(0),
-            reader.GetString(1),
-            reader.IsDBNull(2) ? null : reader.GetInt32(2),
-            reader.IsDBNull(3) ? null : reader.GetInt32(3)
+            time_sec: reader.GetFloat(0),
+            action: reader.GetString(1),
+            pos_x: reader.IsDBNull(2) ? null : reader.GetInt32(2),
+            pos_y: reader.IsDBNull(3) ? null : reader.GetInt32(3)
         ));
     }
 
     return Results.Ok(new ActionsWrapperDto(records.ToArray()));
 });
 
-// -------------------- RUN --------------------
-// Фиксированный порт
 app.Run("http://0.0.0.0:5081");
