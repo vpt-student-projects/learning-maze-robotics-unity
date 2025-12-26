@@ -351,6 +351,11 @@ public class MazeMenuController : MonoBehaviour
 
         // Применяем все настройки
         ApplySettingsToMazeGenerator();
+        
+        // Определяем и устанавливаем сложность перед генерацией
+        DifficultyLevel difficulty = GetSelectedDifficulty();
+        mazeGenerator.SetSelectedDifficulty(difficulty);
+        Debug.Log($"📊 Сложность для генерации: {difficulty}");
 
         // Выбираем метод генерации
         bool useRandom = useRandomSeedToggle != null && useRandomSeedToggle.isOn;
@@ -364,6 +369,30 @@ public class MazeMenuController : MonoBehaviour
         {
             Debug.Log($"🔢 Генерация с seed: {mazeGenerator.mazeSeed}");
             mazeGenerator.GenerateMazeWithCurrentSeed();
+        }
+    }
+    
+    /// <summary>
+    /// Получает выбранную сложность из UI
+    /// </summary>
+    private DifficultyLevel GetSelectedDifficulty()
+    {
+        if (easyToggle != null && easyToggle.isOn)
+        {
+            return DifficultyLevel.Easy;
+        }
+        else if (mediumToggle != null && mediumToggle.isOn)
+        {
+            return DifficultyLevel.Medium;
+        }
+        else if (hardToggle != null && hardToggle.isOn)
+        {
+            return DifficultyLevel.Hard;
+        }
+        else
+        {
+            // По умолчанию средняя сложность
+            return DifficultyLevel.Medium;
         }
     }
 

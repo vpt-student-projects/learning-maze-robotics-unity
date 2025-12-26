@@ -4,6 +4,11 @@ using System.Collections.Generic;
 
 public class CarController : MonoBehaviour
 {
+
+    public bool isRecording = false;
+    public bool isReplaying = false;
+    private float recordStartTime;
+
     [Header("Настройки машинки")]
     public float moveSpeed = 10f;
     public float rotationSpeed = 270f;
@@ -29,6 +34,7 @@ public class CarController : MonoBehaviour
     public bool isMoving = false;
     private bool isRotating = false;
     private bool isInitialized = false;
+    public CarRecorderAPI recorderAPI;
 
     private int currentDirection = 0;
     private Vector2Int[] directionVectors = {
@@ -112,6 +118,16 @@ public class CarController : MonoBehaviour
             }
         }
 
+        // ✅ ДОБАВИЛИ: один раз ищем рекордер
+        if (recorderAPI == null)
+        {
+            recorderAPI = FindObjectOfType<CarRecorderAPI>();
+            if (recorderAPI == null)
+            {
+                Debug.LogWarning("CarRecorderAPI не найден — запись движений работать не будет");
+            }
+        }
+
         yield return new WaitUntil(() => mazeGenerator.GetMazeData() != null);
 
         mazeData = mazeGenerator.GetMazeData();
@@ -127,6 +143,7 @@ public class CarController : MonoBehaviour
 
         isInitialized = true;
     }
+
 
     void Update()
     {
@@ -353,7 +370,11 @@ public class CarController : MonoBehaviour
     {
         if (!IsCarReady() || isMoving || isRotating) return;
 
-        // УВЕДОМЛЯЕМ ТАЙМЕР О ПОВОРОТЕ
+        if (isRecording && recorderAPI != null)
+        {
+            recorderAPI.LogMovement("turn_left", GetCurrentGlobalPosition());
+        }
+
         if (mazeTimer != null)
         {
             mazeTimer.CarActionPerformed();
@@ -366,7 +387,11 @@ public class CarController : MonoBehaviour
     {
         if (!IsCarReady() || isMoving || isRotating) return;
 
-        // УВЕДОМЛЯЕМ ТАЙМЕР О ПОВОРОТЕ
+        if (isRecording && recorderAPI != null)
+        {
+            recorderAPI.LogMovement("turn_right", GetCurrentGlobalPosition());
+        }
+
         if (mazeTimer != null)
         {
             mazeTimer.CarActionPerformed();
@@ -375,11 +400,16 @@ public class CarController : MonoBehaviour
         StartCoroutine(RotateCar(1));
     }
 
+
     public void MoveForward()
     {
         if (!IsCarReady() || isMoving || isRotating) return;
 
-        // УВЕДОМЛЯЕМ ТАЙМЕР О ДВИЖЕНИИ
+        if (isRecording && recorderAPI != null)
+        {
+            recorderAPI.LogMovement("move_forward", GetCurrentGlobalPosition());
+        }
+
         if (mazeTimer != null)
         {
             mazeTimer.CarActionPerformed();
@@ -388,11 +418,16 @@ public class CarController : MonoBehaviour
         TryMoveInDirection(currentDirection);
     }
 
+
     public void MoveBackward()
     {
         if (!IsCarReady() || isMoving || isRotating) return;
 
-        // УВЕДОМЛЯЕМ ТАЙМЕР О ДВИЖЕНИИ
+        if (isRecording && recorderAPI != null)
+        {
+            recorderAPI.LogMovement("move_backward", GetCurrentGlobalPosition());
+        }
+
         if (mazeTimer != null)
         {
             mazeTimer.CarActionPerformed();
@@ -400,6 +435,7 @@ public class CarController : MonoBehaviour
 
         TryMoveInDirection((currentDirection + 2) % 4);
     }
+
 
     private IEnumerator RotateCar(int directionChange)
     {
