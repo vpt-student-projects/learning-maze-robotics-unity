@@ -47,6 +47,13 @@ public class MazeGenerator : MonoBehaviour
     [Header("Таймер")]
     public MazeTimer mazeTimer;
 
+    [Header("Управление режимами")]
+    public ControlModeManager controlModeManager;
+
+    [Header("Сложность и режим управления")]
+    [SerializeField] private DifficultyLevel selectedDifficulty = DifficultyLevel.Medium;
+    [SerializeField] private ControlMode currentControlMode = ControlMode.Blocks;
+
     [Header("События")]
     public UnityEvent OnMazeGenerated;
     public UnityEvent OnNodesCreated;
@@ -88,8 +95,59 @@ public class MazeGenerator : MonoBehaviour
         }
 
         Debug.Log("🎉 All systems initialized successfully!");
+        
+        // Применяем режим управления на основе сложности ПОСЛЕ генерации лабиринта
+        ApplyControlModeAfterGeneration();
+        
         OnAllInitialized?.Invoke();
         isGenerating = false;
+    }
+    
+    /// <summary>
+    /// Применяет режим управления после генерации лабиринта
+    /// </summary>
+    private void ApplyControlModeAfterGeneration()
+    {
+        if (controlModeManager == null)
+        {
+            controlModeManager = FindObjectOfType<ControlModeManager>();
+        }
+        
+        if (controlModeManager != null)
+        {
+            controlModeManager.SetControlModeFromDifficulty(selectedDifficulty);
+            currentControlMode = controlModeManager.GetCurrentControlMode();
+            Debug.Log($"✅ Режим управления применён: {currentControlMode} (сложность: {selectedDifficulty})");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ ControlModeManager не найден. Режим управления не применён.");
+        }
+    }
+    
+    /// <summary>
+    /// Устанавливает выбранную сложность (вызывается перед генерацией)
+    /// </summary>
+    public void SetSelectedDifficulty(DifficultyLevel difficulty)
+    {
+        selectedDifficulty = difficulty;
+        Debug.Log($"📊 Сложность установлена: {difficulty}");
+    }
+    
+    /// <summary>
+    /// Получить выбранную сложность
+    /// </summary>
+    public DifficultyLevel GetSelectedDifficulty()
+    {
+        return selectedDifficulty;
+    }
+    
+    /// <summary>
+    /// Получить текущий режим управления
+    /// </summary>
+    public ControlMode GetCurrentControlMode()
+    {
+        return currentControlMode;
     }
 
     [ContextMenu("Сгенерировать лабиринт")]

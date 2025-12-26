@@ -753,7 +753,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 535745841}
   toggleTransition: 1
   graphic: {fileID: 120236228}
-  m_Group: {fileID: 901518296}
+  m_Group: {fileID: 780018060}
   onValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -2121,7 +2121,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &375468798
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2590,7 +2590,7 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 395438507}
   toggleTransition: 1
   graphic: {fileID: 1732985305}
-  m_Group: {fileID: 901518296}
+  m_Group: {fileID: 780018060}
   onValueChanged:
     m_PersistentCalls:
       m_Calls: []
@@ -4347,6 +4347,7 @@ GameObject:
   - component: {fileID: 780018057}
   - component: {fileID: 780018059}
   - component: {fileID: 780018058}
+  - component: {fileID: 780018060}
   m_Layer: 5
   m_Name: PanelSettings
   m_TagString: Untagged
@@ -4416,6 +4417,19 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 780018056}
   m_CullTransparentMesh: 1
+--- !u!114 &780018060
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 780018056}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2fafe2cfe61f6974895a912c3755e8f1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_AllowSwitchOff: 0
 --- !u!1 &799234303
 GameObject:
   m_ObjectHideFlags: 0
@@ -6854,6 +6868,7 @@ GameObject:
   - component: {fileID: 1162926878}
   - component: {fileID: 1162926882}
   - component: {fileID: 1162926881}
+  - component: {fileID: 1162926883}
   m_Layer: 0
   m_Name: Controller
   m_TagString: Untagged
@@ -6935,6 +6950,23 @@ MonoBehaviour:
   targetFrameRate: 60
   preventSleep: 1
   logStatusChanges: 1
+--- !u!114 &1162926883
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1162926877}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c21791493d32f1542ac229af168b943c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  blocksPanel: {fileID: 375468797}
+  workspacePanel: {fileID: 0}
+  generationPanel: {fileID: 1186878043}
+  carAPIController: {fileID: 1162926881}
+  currentControlMode: 0
 --- !u!1 &1172131112
 GameObject:
   m_ObjectHideFlags: 0
@@ -7001,6 +7033,9 @@ MonoBehaviour:
   destroyExistingCarObjects: 0
   cameraController: {fileID: 330585548}
   mazeTimer: {fileID: 261229978}
+  controlModeManager: {fileID: 0}
+  selectedDifficulty: 1
+  currentControlMode: 0
   OnMazeGenerated:
     m_PersistentCalls:
       m_Calls: []
@@ -8199,7 +8234,7 @@ MonoBehaviour:
     m_PressedTrigger: Pressed
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
-  m_Interactable: 0
+  m_Interactable: 1
   m_TargetGraphic: {fileID: 728373784}
   toggleTransition: 1
   graphic: {fileID: 1810581540}
@@ -9097,7 +9132,7 @@ MonoBehaviour:
     m_PressedTrigger: Pressed
     m_SelectedTrigger: Selected
     m_DisabledTrigger: Disabled
-  m_Interactable: 0
+  m_Interactable: 1
   m_TargetGraphic: {fileID: 1309775745}
   toggleTransition: 1
   graphic: {fileID: 894468459}
@@ -9105,7 +9140,7 @@ MonoBehaviour:
   onValueChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_IsOn: 0
+  m_IsOn: 1
 --- !u!1 &1790310326
 GameObject:
   m_ObjectHideFlags: 0
