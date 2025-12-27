@@ -24,8 +24,6 @@ public class MazeTimer : MonoBehaviour
     private bool hasStartedMoving = false;
     private bool hasReachedFinish = false;
     private float elapsedTime = 0f;
-    private Vector2Int savedStartPosition;
-    private bool hasSavedStartPosition = false;
 
     // Для отслеживания финишной зоны
     private Vector2Int finishChunk;
@@ -201,12 +199,6 @@ public class MazeTimer : MonoBehaviour
         {
             var chunk = carController.GetCurrentChunkCoordinates();
             var cell = carController.GetCurrentCellCoordinates();
-            savedStartPosition = new Vector2Int(
-                chunk.x * 100 + cell.x,
-                chunk.y * 100 + cell.y
-            );
-            hasSavedStartPosition = true;
-
             Debug.Log($"📌 Сохранена стартовая позиция: Chunk({chunk.x},{chunk.y}) Cell({cell.x},{cell.y})");
         }
     }

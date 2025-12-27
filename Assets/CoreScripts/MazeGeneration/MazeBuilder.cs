@@ -167,7 +167,9 @@ public class MazeBuilder
 
     private void RemoveWall(int chunkX, int chunkZ, int x, int y, int newChunkX, int newChunkZ, int newX, int newY, Vector2Int direction)
     {
-        Debug.Log($"🔨 Removing wall: Chunk({chunkX},{chunkZ})[({x},{y})] -> Chunk({newChunkX},{newChunkZ})[({newX},{newY})] Direction: {DirectionToString(direction)}");
+        // Debug.Log убран для производительности - вызывается очень часто при генерации
+        // Раскомментируйте для отладки:
+        // Debug.Log($"🔨 Removing wall: Chunk({chunkX},{chunkZ})[({x},{y})] -> Chunk({newChunkX},{newChunkZ})[({newX},{newY})] Direction: {DirectionToString(direction)}");
 
         if (chunkX == newChunkX && chunkZ == newChunkZ)
         {
@@ -176,22 +178,18 @@ public class MazeBuilder
             {
                 if (direction == Vector2Int.right)
                 {
-                    Debug.Log($"   ➖ Removing RIGHT wall at [{x + 1}, {y}]");
                     chunk.RemoveVerticalWall(x + 1, y);
                 }
                 else if (direction == Vector2Int.left)
                 {
-                    Debug.Log($"   ➖ Removing LEFT wall at [{x}, {y}]");
                     chunk.RemoveVerticalWall(x, y);
                 }
                 else if (direction == Vector2Int.up)
                 {
-                    Debug.Log($"   ➖ Removing UP wall at [{x}, {y + 1}]");
                     chunk.RemoveHorizontalWall(x, y + 1);
                 }
                 else if (direction == Vector2Int.down)
                 {
-                    Debug.Log($"   ➖ Removing DOWN wall at [{x}, {y}]");
                     chunk.RemoveHorizontalWall(x, y);
                 }
             }
@@ -204,12 +202,10 @@ public class MazeBuilder
                 var rightChunk = mazeData.GetChunk(newChunkX, newChunkZ);
                 if (currentChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing RIGHT boundary wall at [{mazeData.ChunkSize}, {y}]");
                     currentChunk.RemoveVerticalWall(mazeData.ChunkSize, y);
                 }
                 if (rightChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing LEFT boundary wall at [{0}, {newY}]");
                     rightChunk.RemoveVerticalWall(0, newY);
                 }
             }
@@ -219,12 +215,10 @@ public class MazeBuilder
                 var leftChunk = mazeData.GetChunk(newChunkX, newChunkZ);
                 if (currentChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing LEFT boundary wall at [{0}, {y}]");
                     currentChunk.RemoveVerticalWall(0, y);
                 }
                 if (leftChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing RIGHT boundary wall at [{mazeData.ChunkSize}, {newY}]");
                     leftChunk.RemoveVerticalWall(mazeData.ChunkSize, newY);
                 }
             }
@@ -234,12 +228,10 @@ public class MazeBuilder
                 var topChunk = mazeData.GetChunk(newChunkX, newChunkZ);
                 if (currentChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing UP boundary wall at [{x}, {mazeData.ChunkSize}]");
                     currentChunk.RemoveHorizontalWall(x, mazeData.ChunkSize);
                 }
                 if (topChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing DOWN boundary wall at [{newX}, {0}]");
                     topChunk.RemoveHorizontalWall(newX, 0);
                 }
             }
@@ -249,12 +241,10 @@ public class MazeBuilder
                 var bottomChunk = mazeData.GetChunk(newChunkX, newChunkZ);
                 if (currentChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing DOWN boundary wall at [{x}, {0}]");
                     currentChunk.RemoveHorizontalWall(x, 0);
                 }
                 if (bottomChunk != null)
                 {
-                    Debug.Log($"   ➖ Removing UP boundary wall at [{newX}, {mazeData.ChunkSize}]");
                     bottomChunk.RemoveHorizontalWall(newX, mazeData.ChunkSize);
                 }
             }

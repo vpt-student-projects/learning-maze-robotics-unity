@@ -317,15 +317,10 @@ public class MazeGenerator : MonoBehaviour
     private void InitializeComponents()
     {
         // Генерируем или используем seed
-        if (useRandomSeed)
+        if (useRandomSeed || mazeSeed == 0)
         {
             mazeSeed = new System.Random().Next();
             Debug.Log($"🎲 Generated random seed: {mazeSeed}");
-        }
-        else if (mazeSeed == 0)
-        {
-            mazeSeed = new System.Random().Next();
-            Debug.Log($"🎲 No seed specified, generated random seed: {mazeSeed}");
         }
         else
         {
