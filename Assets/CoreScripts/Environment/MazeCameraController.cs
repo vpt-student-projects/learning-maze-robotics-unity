@@ -2,17 +2,17 @@ using UnityEngine;
 
 public class MazeCameraController : MonoBehaviour
 {
-    [Header("Режим камеры")]
+    [Header("пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ")]
     public CameraViewMode viewMode = CameraViewMode.OrthographicTop;
 
-    [Header("Настройки ортографической камеры")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ")]
     public float orthographicPadding = 5f;
     public float minOrthographicSize = 10f;
 
-    [Header("Настройки перспективной камеры")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ")]
     public float perspectiveHeight = 30f;
 
-    [Header("Ссылки")]
+    [Header("пїЅпїЅпїЅпїЅпїЅпїЅ")]
     public Camera mazeCamera;
     public MazeGenerator mazeGenerator;
 
@@ -20,12 +20,28 @@ public class MazeCameraController : MonoBehaviour
     private Quaternion originalRotation;
     private float originalOrthographicSize;
     private bool originalOrthographic;
+    private CarController carController;
+    private Transform carTransform;
+
+    [Header("РќР°СЃС‚СЂРѕР№РєРё СЃР»РµР¶РµРЅРёСЏ Р·Р° РјР°С€РёРЅРєРѕР№")]
+    public float followCarHeight = 15f;
+    public float followCarZoom = 10f;
+    public float followCarMinZoom = 5f;
+    public float followCarMaxZoom = 30f;
+    public float followCarSmoothSpeed = 5f;
+
+    [Header("РќР°СЃС‚СЂРѕР№РєРё РІРёРґР° РѕС‚ РїРµСЂРІРѕРіРѕ Р»РёС†Р°")]
+    public float firstPersonHeight = 1.5f;
+    public float firstPersonOffset = 0.5f;
 
     public enum CameraViewMode
     {
-        OrthographicTop,
-        PerspectiveTop,
-        Original
+        FullMazeView,      // РћР±Р·РѕСЂ РЅР° РІРµСЃСЊ Р»Р°Р±РёСЂРёРЅС‚
+        FollowCar,         // РЎР»РµР¶РµРЅРёРµ Р·Р° РјР°С€РёРЅРєРѕР№
+        FirstPerson,       // Р’РёРґ РѕС‚ РїРµСЂРІРѕРіРѕ Р»РёС†Р°
+        OrthographicTop,   // РЎС‚Р°СЂС‹Р№ СЂРµР¶РёРј (РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё)
+        PerspectiveTop,    // РЎС‚Р°СЂС‹Р№ СЂРµР¶РёРј (РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё)
+        Original           // РЎС‚Р°СЂС‹Р№ СЂРµР¶РёРј (РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё)
     }
 
     void Start()
@@ -40,17 +56,39 @@ public class MazeCameraController : MonoBehaviour
         SetupCameraView();
     }
 
-    [ContextMenu("Настроить камеру на лабиринт")]
+    void Update()
+    {
+        // РћР±РЅРѕРІР»СЏРµРј РєР°РјРµСЂСѓ РІ СЂРµР¶РёРјРµ СЃР»РµР¶РµРЅРёСЏ Р·Р° РјР°С€РёРЅРєРѕР№
+        if (viewMode == CameraViewMode.FollowCar)
+        {
+            UpdateFollowCarCamera();
+        }
+        else if (viewMode == CameraViewMode.FirstPerson)
+        {
+            UpdateFirstPersonCamera();
+        }
+    }
+
+    [ContextMenu("пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ")]
     public void SetupCameraView()
     {
         if (mazeGenerator == null || mazeCamera == null)
         {
-            Debug.LogWarning("MazeGenerator или Camera не назначены!");
+            Debug.LogWarning("MazeGenerator пїЅпїЅпїЅ Camera пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ!");
             return;
         }
 
         switch (viewMode)
         {
+            case CameraViewMode.FullMazeView:
+                SetupFullMazeView();
+                break;
+            case CameraViewMode.FollowCar:
+                SetupFollowCarView();
+                break;
+            case CameraViewMode.FirstPerson:
+                SetupFirstPersonView();
+                break;
             case CameraViewMode.OrthographicTop:
                 SetupOrthographicTopView();
                 break;
@@ -62,73 +100,73 @@ public class MazeCameraController : MonoBehaviour
                 break;
         }
 
-        Debug.Log($"Камера настроена в режиме: {viewMode}");
+        Debug.Log($"пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ: {viewMode}");
     }
 
     private void SetupOrthographicTopView()
     {
-        // Рассчитываем размеры лабиринта
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         float mazeWidth = mazeGenerator.GetTotalWidth();
         float mazeDepth = mazeGenerator.GetTotalDepth();
 
-        // Находим центр лабиринта
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         Vector3 mazeCenter = new Vector3(
             mazeWidth * 0.5f + mazeGenerator.wallOffset.x,
             0f,
             mazeDepth * 0.5f + mazeGenerator.wallOffset.z
         );
 
-        // Настраиваем камеру строго сверху
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         mazeCamera.transform.position = new Vector3(
             mazeCenter.x,
-            Mathf.Max(mazeWidth, mazeDepth) * 0.5f + 10f, // Высота зависит от размера лабиринта
+            Mathf.Max(mazeWidth, mazeDepth) * 0.5f + 10f, // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
             mazeCenter.z
         );
         mazeCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
 
-        // Настраиваем ортографический размер
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         mazeCamera.orthographic = true;
 
-        // Рассчитываем ортографический размер чтобы вместить весь лабиринт
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         float aspectRatio = (float)Screen.width / Screen.height;
         float requiredSizeX = (mazeWidth * 0.5f + orthographicPadding) / aspectRatio;
         float requiredSizeZ = (mazeDepth * 0.5f + orthographicPadding);
 
         mazeCamera.orthographicSize = Mathf.Max(requiredSizeX, requiredSizeZ, minOrthographicSize);
 
-        Debug.Log($"Ортографический вид: размер={mazeCamera.orthographicSize:F1}, лабиринт={mazeWidth:F1}x{mazeDepth:F1}");
+        Debug.Log($"пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ: пїЅпїЅпїЅпїЅпїЅпїЅ={mazeCamera.orthographicSize:F1}, пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ={mazeWidth:F1}x{mazeDepth:F1}");
     }
 
     private void SetupPerspectiveTopView()
     {
-        // Рассчитываем размеры лабиринта
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         float mazeWidth = mazeGenerator.GetTotalWidth();
         float mazeDepth = mazeGenerator.GetTotalDepth();
 
-        // Находим центр лабиринта
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         Vector3 mazeCenter = new Vector3(
             mazeWidth * 0.5f + mazeGenerator.wallOffset.x,
             0f,
             mazeDepth * 0.5f + mazeGenerator.wallOffset.z
         );
 
-        // Настраиваем камеру сверху с небольшим наклоном для лучшего обзора
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         mazeCamera.transform.position = new Vector3(
             mazeCenter.x,
             perspectiveHeight,
-            mazeCenter.z - mazeDepth * 0.2f // Немного смещаем назад для лучшего обзора
+            mazeCenter.z - mazeDepth * 0.2f // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
         );
 
-        // Смотрим на центр лабиринта с небольшим наклоном
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         mazeCamera.transform.LookAt(mazeCenter);
         mazeCamera.orthographic = false;
 
-        // Настраиваем поле зрения чтобы вместить весь лабиринт
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         float distanceToCenter = Vector3.Distance(mazeCamera.transform.position, mazeCenter);
         float requiredFOV = Mathf.Atan(Mathf.Max(mazeWidth, mazeDepth) * 0.6f / distanceToCenter) * Mathf.Rad2Deg * 2f;
         mazeCamera.fieldOfView = Mathf.Clamp(requiredFOV, 40f, 80f);
 
-        Debug.Log($"Перспективный вид: FOV={mazeCamera.fieldOfView:F1}, высота={perspectiveHeight:F1}");
+        Debug.Log($"пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ: FOV={mazeCamera.fieldOfView:F1}, пїЅпїЅпїЅпїЅпїЅпїЅ={perspectiveHeight:F1}");
     }
 
     private void RestoreOriginalCamera()
@@ -151,11 +189,10 @@ public class MazeCameraController : MonoBehaviour
         }
     }
 
-    // Методы для смены режима через код
+    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
     public void SetOrthographicTopMode()
     {
-        viewMode = CameraViewMode.OrthographicTop;
-        SetupCameraView();
+        SetFullMazeViewMode();
     }
 
     public void SetPerspectiveTopMode()
@@ -170,7 +207,271 @@ public class MazeCameraController : MonoBehaviour
         SetupCameraView();
     }
 
-    // Обновление камеры при изменении размера лабиринта
+    private void SetupFullMazeView()
+    {
+        // Р’С‹С‡РёСЃР»СЏРµРј СЂР°Р·РјРµСЂС‹ Р»Р°Р±РёСЂРёРЅС‚Р°
+        float mazeWidth = mazeGenerator.GetTotalWidth();
+        float mazeDepth = mazeGenerator.GetTotalDepth();
+
+        // Р¦РµРЅС‚СЂ Р»Р°Р±РёСЂРёРЅС‚Р°
+        Vector3 mazeCenter = new Vector3(
+            mazeWidth * 0.5f + mazeGenerator.wallOffset.x,
+            0f,
+            mazeDepth * 0.5f + mazeGenerator.wallOffset.z
+        );
+
+        // РџРѕР·РёС†РёРѕРЅРёСЂСѓРµРј РєР°РјРµСЂСѓ СЃРІРµСЂС…Сѓ РїРѕ С†РµРЅС‚СЂСѓ
+        float maxDimension = Mathf.Max(mazeWidth, mazeDepth);
+        float cameraHeight = maxDimension * 0.6f + 20f; // Р’С‹СЃРѕС‚Р° Р·Р°РІРёСЃРёС‚ РѕС‚ СЂР°Р·РјРµСЂР° Р»Р°Р±РёСЂРёРЅС‚Р°
+        
+        mazeCamera.transform.position = new Vector3(
+            mazeCenter.x,
+            cameraHeight,
+            mazeCenter.z
+        );
+        mazeCamera.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РѕСЂС‚РѕРіСЂР°С„РёС‡РµСЃРєСѓСЋ РїСЂРѕРµРєС†РёСЋ
+        mazeCamera.orthographic = true;
+
+        // Р Р°СЃСЃС‡РёС‚С‹РІР°РµРј РѕСЂС‚РѕРіСЂР°С„РёС‡РµСЃРєРёР№ СЂР°Р·РјРµСЂ С‡С‚РѕР±С‹ РѕС…РІР°С‚РёС‚СЊ РІРµСЃСЊ Р»Р°Р±РёСЂРёРЅС‚
+        float aspectRatio = (float)Screen.width / Screen.height;
+        float requiredSizeX = (mazeWidth * 0.5f + orthographicPadding) / aspectRatio;
+        float requiredSizeZ = (mazeDepth * 0.5f + orthographicPadding);
+
+        mazeCamera.orthographicSize = Mathf.Max(requiredSizeX, requiredSizeZ, minOrthographicSize);
+
+        Debug.Log($"рџ“· РћР±Р·РѕСЂ РЅР° РІРµСЃСЊ Р»Р°Р±РёСЂРёРЅС‚: СЂР°Р·РјРµСЂ={mazeCamera.orthographicSize:F1}, Р»Р°Р±РёСЂРёРЅС‚={mazeWidth:F1}x{mazeDepth:F1}");
+    }
+
+    private void SetupFollowCarView()
+    {
+        // РќР°С…РѕРґРёРј РјР°С€РёРЅРєСѓ
+        if (carController == null)
+        {
+            carController = mazeGenerator?.GetCarController();
+        }
+
+        if (carController == null || !carController.IsCarReady())
+        {
+            Debug.LogWarning("вљ пёЏ РњР°С€РёРЅРєР° РЅРµ РЅР°Р№РґРµРЅР° РґР»СЏ СЂРµР¶РёРјР° СЃР»РµР¶РµРЅРёСЏ. РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР° РѕР±Р·РѕСЂ Р»Р°Р±РёСЂРёРЅС‚Р°.");
+            viewMode = CameraViewMode.FullMazeView;
+            SetupFullMazeView();
+            return;
+        }
+
+        // РџРѕР»СѓС‡Р°РµРј С‚СЂР°РЅСЃС„РѕСЂРј РјР°С€РёРЅРєРё
+        if (carTransform == null)
+        {
+            var carInstance = carController.transform.Find("PlayerCar");
+            if (carInstance == null)
+            {
+                // РџС‹С‚Р°РµРјСЃСЏ РЅР°Р№С‚Рё РґРѕС‡РµСЂРЅРёР№ РѕР±СЉРµРєС‚ СЃ РјР°С€РёРЅРєРѕР№
+                foreach (Transform child in carController.transform)
+                {
+                    if (child.name.Contains("Car") || child.name.Contains("Player"))
+                    {
+                        carTransform = child;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                carTransform = carInstance;
+            }
+        }
+
+        if (carTransform == null)
+        {
+            Debug.LogWarning("вљ пёЏ РўСЂР°РЅСЃС„РѕСЂРј РјР°С€РёРЅРєРё РЅРµ РЅР°Р№РґРµРЅ. РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР° РѕР±Р·РѕСЂ Р»Р°Р±РёСЂРёРЅС‚Р°.");
+            viewMode = CameraViewMode.FullMazeView;
+            SetupFullMazeView();
+            return;
+        }
+
+        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РЅР°С‡Р°Р»СЊРЅСѓСЋ РїРѕР·РёС†РёСЋ РєР°РјРµСЂС‹
+        UpdateFollowCarCamera();
+        mazeCamera.orthographic = false;
+        mazeCamera.fieldOfView = 60f;
+
+        Debug.Log("рџ“· Р РµР¶РёРј СЃР»РµР¶РµРЅРёСЏ Р·Р° РјР°С€РёРЅРєРѕР№ Р°РєС‚РёРІРёСЂРѕРІР°РЅ");
+    }
+
+    private void UpdateFollowCarCamera()
+    {
+        if (carTransform == null)
+        {
+            if (carController == null)
+            {
+                carController = mazeGenerator?.GetCarController();
+            }
+
+            if (carController != null && carController.IsCarReady())
+            {
+                var carInstance = carController.transform.Find("PlayerCar");
+                if (carInstance == null)
+                {
+                    foreach (Transform child in carController.transform)
+                    {
+                        if (child.name.Contains("Car") || child.name.Contains("Player"))
+                        {
+                            carTransform = child;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    carTransform = carInstance;
+                }
+            }
+
+            if (carTransform == null)
+                return;
+        }
+
+        Vector3 carPosition = carTransform.position;
+        Vector3 targetPosition = carPosition + Vector3.up * followCarHeight;
+        targetPosition += carTransform.forward * (-followCarZoom * 0.5f); // РћС‚СЃС‚СѓРї РЅР°Р·Р°Рґ
+
+        // РџР»Р°РІРЅРѕРµ РїРµСЂРµРјРµС‰РµРЅРёРµ РєР°РјРµСЂС‹
+        mazeCamera.transform.position = Vector3.Lerp(
+            mazeCamera.transform.position,
+            targetPosition,
+            Time.deltaTime * followCarSmoothSpeed
+        );
+
+        // РљР°РјРµСЂР° СЃРјРѕС‚СЂРёС‚ РЅР° РјР°С€РёРЅРєСѓ
+        Vector3 lookAtPosition = carPosition + Vector3.up * 1f;
+        mazeCamera.transform.LookAt(lookAtPosition);
+    }
+
+    private void SetupFirstPersonView()
+    {
+        // РќР°С…РѕРґРёРј РјР°С€РёРЅРєСѓ
+        if (carController == null)
+        {
+            carController = mazeGenerator?.GetCarController();
+        }
+
+        if (carController == null || !carController.IsCarReady())
+        {
+            Debug.LogWarning("вљ пёЏ РњР°С€РёРЅРєР° РЅРµ РЅР°Р№РґРµРЅР° РґР»СЏ СЂРµР¶РёРјР° РѕС‚ РїРµСЂРІРѕРіРѕ Р»РёС†Р°. РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР° РѕР±Р·РѕСЂ Р»Р°Р±РёСЂРёРЅС‚Р°.");
+            viewMode = CameraViewMode.FullMazeView;
+            SetupFullMazeView();
+            return;
+        }
+
+        // РџРѕР»СѓС‡Р°РµРј С‚СЂР°РЅСЃС„РѕСЂРј РјР°С€РёРЅРєРё
+        if (carTransform == null)
+        {
+            var carInstance = carController.transform.Find("PlayerCar");
+            if (carInstance == null)
+            {
+                foreach (Transform child in carController.transform)
+                {
+                    if (child.name.Contains("Car") || child.name.Contains("Player"))
+                    {
+                        carTransform = child;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                carTransform = carInstance;
+            }
+        }
+
+        if (carTransform == null)
+        {
+            Debug.LogWarning("вљ пёЏ РўСЂР°РЅСЃС„РѕСЂРј РјР°С€РёРЅРєРё РЅРµ РЅР°Р№РґРµРЅ. РџРµСЂРµРєР»СЋС‡Р°СЋСЃСЊ РЅР° РѕР±Р·РѕСЂ Р»Р°Р±РёСЂРёРЅС‚Р°.");
+            viewMode = CameraViewMode.FullMazeView;
+            SetupFullMazeView();
+            return;
+        }
+
+        // РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј РЅР°С‡Р°Р»СЊРЅСѓСЋ РїРѕР·РёС†РёСЋ РєР°РјРµСЂС‹
+        UpdateFirstPersonCamera();
+        mazeCamera.orthographic = false;
+        mazeCamera.fieldOfView = 75f;
+
+        Debug.Log("рџ“· Р РµР¶РёРј РѕС‚ РїРµСЂРІРѕРіРѕ Р»РёС†Р° Р°РєС‚РёРІРёСЂРѕРІР°РЅ");
+    }
+
+    private void UpdateFirstPersonCamera()
+    {
+        if (carTransform == null)
+        {
+            if (carController == null)
+            {
+                carController = mazeGenerator?.GetCarController();
+            }
+
+            if (carController != null && carController.IsCarReady())
+            {
+                var carInstance = carController.transform.Find("PlayerCar");
+                if (carInstance == null)
+                {
+                    foreach (Transform child in carController.transform)
+                    {
+                        if (child.name.Contains("Car") || child.name.Contains("Player"))
+                        {
+                            carTransform = child;
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    carTransform = carInstance;
+                }
+            }
+
+            if (carTransform == null)
+                return;
+        }
+
+        // РљР°РјРµСЂР° РїСЂРёРєСЂРµРїР»РµРЅР° Рє РјР°С€РёРЅРєРµ
+        Vector3 carPosition = carTransform.position;
+        Vector3 forward = carTransform.forward;
+        Vector3 up = carTransform.up;
+
+        Vector3 cameraPosition = carPosition + up * firstPersonHeight + forward * firstPersonOffset;
+        mazeCamera.transform.position = cameraPosition;
+        mazeCamera.transform.rotation = carTransform.rotation;
+    }
+
+    public void SetFullMazeViewMode()
+    {
+        viewMode = CameraViewMode.FullMazeView;
+        SetupCameraView();
+    }
+
+    public void SetFollowCarMode()
+    {
+        viewMode = CameraViewMode.FollowCar;
+        SetupCameraView();
+    }
+
+    public void SetFirstPersonMode()
+    {
+        viewMode = CameraViewMode.FirstPerson;
+        SetupCameraView();
+    }
+
+    public void SetFollowCarZoom(float zoom)
+    {
+        followCarZoom = Mathf.Clamp(zoom, followCarMinZoom, followCarMaxZoom);
+    }
+
+    public float GetFollowCarZoom()
+    {
+        return followCarZoom;
+    }
+
+    //      пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     public void UpdateCameraForNewMaze()
     {
         SetupCameraView();
@@ -178,14 +479,14 @@ public class MazeCameraController : MonoBehaviour
 
     void OnValidate()
     {
-        // Автоматическое обновление в редакторе при изменении настроек
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         if (Application.isPlaying && mazeCamera != null)
         {
             SetupCameraView();
         }
     }
 
-    // Метод для отладки - показывает границы лабиринта
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
     void OnDrawGizmosSelected()
     {
         if (mazeGenerator != null)

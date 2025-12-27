@@ -31,6 +31,14 @@ public class MazeMenuController : MonoBehaviour
     [SerializeField] private Toggle finishInMiddleToggle;
     [SerializeField] private Toggle rightHandRuleToggle;
 
+    [Header("Управление камерой")]
+    [SerializeField] private Button fullMazeViewButton;
+    [SerializeField] private Button followCarButton;
+    [SerializeField] private Button firstPersonButton;
+    [SerializeField] private Slider followCarZoomSlider;
+    [SerializeField] private TextMeshProUGUI followCarZoomText;
+    [SerializeField] private MazeCameraController cameraController;
+
     [Header("Кнопки")]
     [SerializeField] private Button resetSettingsButton;
 
@@ -58,6 +66,16 @@ public class MazeMenuController : MonoBehaviour
                 Debug.LogError("❌ MazeGenerator не найден в сцене!");
                 enabled = false;
                 return;
+            }
+        }
+
+        // Находим контроллер камеры
+        if (cameraController == null)
+        {
+            cameraController = FindObjectOfType<MazeCameraController>();
+            if (cameraController == null)
+            {
+                Debug.LogWarning("⚠️ MazeCameraController не найден в сцене!");
             }
         }
 
@@ -214,6 +232,32 @@ public class MazeMenuController : MonoBehaviour
         {
             rightHandRuleToggle.onValueChanged.RemoveAllListeners();
             rightHandRuleToggle.onValueChanged.AddListener(OnRightHandRuleChanged);
+        }
+
+        // Кнопки управления камерой
+        if (fullMazeViewButton != null)
+        {
+            fullMazeViewButton.onClick.RemoveAllListeners();
+            fullMazeViewButton.onClick.AddListener(OnFullMazeViewButtonClick);
+        }
+
+        if (followCarButton != null)
+        {
+            followCarButton.onClick.RemoveAllListeners();
+            followCarButton.onClick.AddListener(OnFollowCarButtonClick);
+        }
+
+        if (firstPersonButton != null)
+        {
+            firstPersonButton.onClick.RemoveAllListeners();
+            firstPersonButton.onClick.AddListener(OnFirstPersonButtonClick);
+        }
+
+        // Ползунок зума для режима слежения
+        if (followCarZoomSlider != null)
+        {
+            followCarZoomSlider.onValueChanged.RemoveAllListeners();
+            followCarZoomSlider.onValueChanged.AddListener(OnFollowCarZoomChanged);
         }
     }
 
@@ -486,36 +530,22 @@ public class MazeMenuController : MonoBehaviour
 
     void OnDifficultyChanged(int difficultyIndex)
     {
+        // Сложность больше не влияет на размеры лабиринта
+        // Размеры настраиваются отдельно через поля ввода
         switch (difficultyIndex)
         {
             case 0: // Лёгкая
-                mazeGenerator.chunkSize = 3;
-                mazeGenerator.mazeSizeInChunks = new Vector2Int(2, 2);
                 Debug.Log("🎮 Сложность: Лёгкая");
                 break;
 
             case 1: // Средняя
-                mazeGenerator.chunkSize = 4;
-                mazeGenerator.mazeSizeInChunks = new Vector2Int(3, 3);
                 Debug.Log("🎮 Сложность: Средняя");
                 break;
 
             case 2: // Сложная
-                mazeGenerator.chunkSize = 5;
-                mazeGenerator.mazeSizeInChunks = new Vector2Int(4, 4);
                 Debug.Log("🎮 Сложность: Сложная");
                 break;
         }
-
-        // Обновляем UI поля ввода
-        if (chunkSizeInputField != null)
-            chunkSizeInputField.text = mazeGenerator.chunkSize.ToString();
-
-        if (mazeWidthInputField != null)
-            mazeWidthInputField.text = mazeGenerator.mazeSizeInChunks.x.ToString();
-
-        if (mazeHeightInputField != null)
-            mazeHeightInputField.text = mazeGenerator.mazeSizeInChunks.y.ToString();
     }
 
     void ApplySettingsToMazeGenerator()
@@ -524,36 +554,15 @@ public class MazeMenuController : MonoBehaviour
 
         // Применяем все настройки из UI
 
-        // Сначала проверяем, не выбрана ли сложность
-        bool difficultySelected = false;
-        if (easyToggle != null && easyToggle.isOn)
-        {
-            OnDifficultyChanged(0);
-            difficultySelected = true;
-        }
-        else if (mediumToggle != null && mediumToggle.isOn)
-        {
-            OnDifficultyChanged(1);
-            difficultySelected = true;
-        }
-        else if (hardToggle != null && hardToggle.isOn)
-        {
-            OnDifficultyChanged(2);
-            difficultySelected = true;
-        }
+        // Размеры лабиринта всегда берутся из полей ввода, независимо от сложности
+        if (chunkSizeInputField != null && int.TryParse(chunkSizeInputField.text, out int chunkSize))
+            mazeGenerator.chunkSize = chunkSize;
 
-        // Если сложность не выбрана, применяем ручные настройки
-        if (!difficultySelected)
-        {
-            if (chunkSizeInputField != null && int.TryParse(chunkSizeInputField.text, out int chunkSize))
-                mazeGenerator.chunkSize = chunkSize;
+        if (mazeWidthInputField != null && int.TryParse(mazeWidthInputField.text, out int width))
+            mazeGenerator.mazeSizeInChunks.x = width;
 
-            if (mazeWidthInputField != null && int.TryParse(mazeWidthInputField.text, out int width))
-                mazeGenerator.mazeSizeInChunks.x = width;
-
-            if (mazeHeightInputField != null && int.TryParse(mazeHeightInputField.text, out int height))
-                mazeGenerator.mazeSizeInChunks.y = height;
-        }
+        if (mazeHeightInputField != null && int.TryParse(mazeHeightInputField.text, out int height))
+            mazeGenerator.mazeSizeInChunks.y = height;
 
         // Остальные настройки - ВАЖНО: финиш в середине
         if (finishInMiddleToggle != null)
@@ -592,6 +601,83 @@ public class MazeMenuController : MonoBehaviour
                 currentSeedText.text = "Seed: 🎲 Случайный";
             else
                 currentSeedText.text = $"Seed: {mazeGenerator.mazeSeed}";
+        }
+    }
+
+    // Обработчики управления камерой
+    void OnFullMazeViewButtonClick()
+    {
+        if (cameraController != null)
+        {
+            cameraController.SetFullMazeViewMode();
+            Debug.Log("📷 Режим камеры: Обзор на весь лабиринт");
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ MazeCameraController не найден!");
+        }
+    }
+
+    void OnFollowCarButtonClick()
+    {
+        if (cameraController != null)
+        {
+            cameraController.SetFollowCarMode();
+            Debug.Log("📷 Режим камеры: Слежение за машинкой");
+            
+            // Показываем ползунок зума
+            if (followCarZoomSlider != null)
+            {
+                followCarZoomSlider.gameObject.SetActive(true);
+                followCarZoomSlider.minValue = cameraController.followCarMinZoom;
+                followCarZoomSlider.maxValue = cameraController.followCarMaxZoom;
+                followCarZoomSlider.value = cameraController.followCarZoom;
+            }
+            if (followCarZoomText != null)
+            {
+                followCarZoomText.gameObject.SetActive(true);
+                UpdateFollowCarZoomText();
+            }
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ MazeCameraController не найден!");
+        }
+    }
+
+    void OnFirstPersonButtonClick()
+    {
+        if (cameraController != null)
+        {
+            cameraController.SetFirstPersonMode();
+            Debug.Log("📷 Режим камеры: Вид от первого лица");
+            
+            // Скрываем ползунок зума
+            if (followCarZoomSlider != null)
+                followCarZoomSlider.gameObject.SetActive(false);
+            if (followCarZoomText != null)
+                followCarZoomText.gameObject.SetActive(false);
+        }
+        else
+        {
+            Debug.LogWarning("⚠️ MazeCameraController не найден!");
+        }
+    }
+
+    void OnFollowCarZoomChanged(float value)
+    {
+        if (cameraController != null)
+        {
+            cameraController.SetFollowCarZoom(value);
+            UpdateFollowCarZoomText();
+        }
+    }
+
+    void UpdateFollowCarZoomText()
+    {
+        if (followCarZoomText != null && cameraController != null)
+        {
+            followCarZoomText.text = $"Зум: {cameraController.GetFollowCarZoom():F1}";
         }
     }
 
