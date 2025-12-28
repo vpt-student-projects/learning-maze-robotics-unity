@@ -18,12 +18,12 @@ public class MazeVisualizer
         CreateFloor();
         CreateWalls();
 
-        if (generator.createFinishArea && generator.finishPrefab != null)
+        if ((generator.createFinishArea || generator.createFinishAreaInCorner) && generator.finishPrefab != null)
         {
             CreateFinishVisual();
         }
 
-        Debug.Log($"Визуализация создана: {mazeData.MazeSizeInChunks.x}x{mazeData.MazeSizeInChunks.y} чанков");
+        Debug.Log($"пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ: {mazeData.MazeSizeInChunks.x}x{mazeData.MazeSizeInChunks.y} пїЅпїЅпїЅпїЅпїЅпїЅ");
     }
 
     private void CreateFloor()
@@ -42,13 +42,13 @@ public class MazeVisualizer
         floor.transform.position = floorPosition;
         floor.name = "MazeFloor";
 
-        // Устанавливаем слой "Floor"
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ "Floor"
         floor.layer = LayerMask.NameToLayer("Floor");
 
-        // Если у пола есть дочерние объекты, тоже устанавливаем им слой Floor
+        // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ Floor
         SetLayerRecursively(floor, LayerMask.NameToLayer("Floor"));
 
-        Debug.Log($"Пол создан: {totalWidth:F1}x{totalDepth:F1} (слой: {LayerMask.LayerToName(floor.layer)})");
+        Debug.Log($"пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ: {totalWidth:F1}x{totalDepth:F1} (пїЅпїЅпїЅпїЅ: {LayerMask.LayerToName(floor.layer)})");
     }
 
     private void CreateWalls()
@@ -62,7 +62,7 @@ public class MazeVisualizer
                 var chunk = mazeData.GetChunk(chunkX, chunkZ);
                 if (chunk == null)
                 {
-                    Debug.LogWarning($"Чанк [{chunkX},{chunkZ}] null при создании стен");
+                    Debug.LogWarning($"пїЅпїЅпїЅпїЅ [{chunkX},{chunkZ}] null пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ");
                     continue;
                 }
 
@@ -70,7 +70,7 @@ public class MazeVisualizer
             }
         }
 
-        Debug.Log($"Создано стен: {wallCount} (слой: Wall)");
+        Debug.Log($"пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ: {wallCount} (пїЅпїЅпїЅпїЅ: Wall)");
     }
 
     private int CreateChunkWalls(int chunkX, int chunkZ)
@@ -84,7 +84,7 @@ public class MazeVisualizer
 
         int wallCount = 0;
 
-        // Создание горизонтальных стен
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         for (int x = 0; x < mazeData.ChunkSize; x++)
         {
             for (int y = 0; y <= mazeData.ChunkSize; y++)
@@ -97,7 +97,7 @@ public class MazeVisualizer
             }
         }
 
-        // Создание вертикальных стен
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         for (int x = 0; x <= mazeData.ChunkSize; x++)
         {
             for (int y = 0; y < mazeData.ChunkSize; y++)
@@ -141,32 +141,50 @@ public class MazeVisualizer
         else
             wall.transform.localScale = new Vector3(generator.wallThickness, generator.wallHeight, generator.cellSize + generator.cellOffset.z);
 
-        // Устанавливаем слой "Wall"
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ "Wall"
         wall.layer = LayerMask.NameToLayer("Wall");
 
-        // Если у стены есть дочерние объекты, тоже устанавливаем им слой Wall
+        // пїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅ Wall
         SetLayerRecursively(wall, LayerMask.NameToLayer("Wall"));
 
-        // Переименовываем для удобства отладки
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         string wallType = isHorizontal ? "Horizontal" : "Vertical";
         wall.name = $"Wall_{wallType}_Chunk({chunkBaseOffset.x / (mazeData.ChunkSize * generator.cellSize):F0},{chunkBaseOffset.z / (mazeData.ChunkSize * generator.cellSize):F0})_Pos({x},{y})";
     }
 
     private void CreateFinishVisual()
     {
-        Vector3 finishPosition = generator.GetCellWorldPosition(
-            mazeData.StartGenerationChunk.x,
-            mazeData.StartGenerationChunk.y,
-            mazeData.StartGenerationCell.x - 1,
-            mazeData.StartGenerationCell.y - 1
-        );
+        Vector3 finishPosition;
+        
+        if (generator.createFinishArea)
+        {
+            // пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+            finishPosition = generator.GetCellWorldPosition(
+                mazeData.StartGenerationChunk.x,
+                mazeData.StartGenerationChunk.y,
+                mazeData.StartGenerationCell.x - 1,
+                mazeData.StartGenerationCell.y - 1
+            );
+            finishPosition += new Vector3(generator.cellSize, 0, generator.cellSize);
+        }
+        else // createFinishAreaInCorner
+        {
+            // пїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ StartGenerationChunk пїЅ StartGenerationCell
+            // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ CreateFinishAreaInCorner
+            finishPosition = generator.GetCellWorldPosition(
+                mazeData.StartGenerationChunk.x,
+                mazeData.StartGenerationChunk.y,
+                mazeData.StartGenerationCell.x,
+                mazeData.StartGenerationCell.y
+            );
+            finishPosition += new Vector3(generator.cellSize, 0, generator.cellSize);
+        }
 
-        finishPosition += new Vector3(generator.cellSize, 0, generator.cellSize);
         GameObject finish = Object.Instantiate(generator.finishPrefab, finishPosition, Quaternion.identity, mazeParent.transform);
         finish.name = "FinishArea";
         finish.transform.localScale = new Vector3(generator.cellSize * 2, 1, generator.cellSize * 2);
 
-        // Устанавливаем слой "Floor" для финишной зоны
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ "Floor" пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
         finish.layer = LayerMask.NameToLayer("Floor");
         SetLayerRecursively(finish, LayerMask.NameToLayer("Floor"));
     }

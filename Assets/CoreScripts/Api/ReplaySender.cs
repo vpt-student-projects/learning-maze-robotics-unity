@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Text;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -22,7 +22,7 @@ public class ReplaySender : MonoBehaviour
         public int maze_width;
         public int maze_height;
         public bool create_finish_area;
-        public bool use_right_hand_rule;
+        public bool create_finish_area_in_corner;
     }
 
     [System.Serializable]
@@ -65,7 +65,7 @@ public class ReplaySender : MonoBehaviour
             maze_width = w,
             maze_height = h,
             create_finish_area = mazeGenerator.createFinishArea,
-            use_right_hand_rule = mazeGenerator.useRightHandRule
+            create_finish_area_in_corner = mazeGenerator.createFinishAreaInCorner
         };
 
         string json = JsonUtility.ToJson(dto);
@@ -87,7 +87,7 @@ public class ReplaySender : MonoBehaviour
         var created = JsonUtility.FromJson<AttemptCreatedDto>(req.downloadHandler.text);
         currentAttemptId = created.attempt_id;
 
-        Debug.Log($"✅ Attempt created: {currentAttemptId} | seed={seed} size={w}x{h} finishCenter={dto.create_finish_area} rightHand={dto.use_right_hand_rule}");
+        Debug.Log($"✅ Attempt created: {currentAttemptId} | seed={seed} size={w}x{h} finishCenter={dto.create_finish_area} finishCorner={dto.create_finish_area_in_corner}");
 
         car.isRecording = true;
         Debug.Log("Recording ON");

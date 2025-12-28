@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System;
@@ -69,17 +69,31 @@ public class MazeTimer : MonoBehaviour
             return;
         }
 
-        if (mazeGenerator.createFinishArea)
+        if (mazeGenerator.createFinishArea || mazeGenerator.createFinishAreaInCorner)
         {
             var mazeData = mazeGenerator.GetMazeData();
             finishChunk = mazeData.StartGenerationChunk;
-            finishCellStart = new Vector2Int(
-                mazeData.StartGenerationCell.x - 1,
-                mazeData.StartGenerationCell.y - 1
-            );
+            
+            if (mazeGenerator.createFinishArea)
+            {
+                // Финиш в середине
+                finishCellStart = new Vector2Int(
+                    mazeData.StartGenerationCell.x - 1,
+                    mazeData.StartGenerationCell.y - 1
+                );
+                Debug.Log($"🎯 Финишная зона (в середине) обновлена: Chunk({finishChunk.x},{finishChunk.y}), Cells({finishCellStart.x},{finishCellStart.y}) to ({finishCellStart.x + 1},{finishCellStart.y + 1})");
+            }
+            else // createFinishAreaInCorner
+            {
+                // Финиш в углу
+                finishCellStart = new Vector2Int(
+                    mazeData.StartGenerationCell.x,
+                    mazeData.StartGenerationCell.y
+                );
+                Debug.Log($"🎯 Финишная зона (в углу) обновлена: Chunk({finishChunk.x},{finishChunk.y}), Cells({finishCellStart.x},{finishCellStart.y}) to ({finishCellStart.x + 1},{finishCellStart.y + 1})");
+            }
+            
             hasFinishArea = true;
-
-            Debug.Log($"🎯 Финишная зона обновлена: Chunk({finishChunk.x},{finishChunk.y}), Cells({finishCellStart.x},{finishCellStart.y}) to ({finishCellStart.x + 1},{finishCellStart.y + 1})");
         }
         else
         {
@@ -169,7 +183,7 @@ public class MazeTimer : MonoBehaviour
             StopTimer();
             timerBackground.color = finishedColor;
             UpdateTimerDisplay();
-            Debug.Log($"🎉 ФИНИШ! Машинка достигла центра лабиринта! Время: {FormatTime(elapsedTime)}");
+            Debug.Log($"🎉 ФИНИШ! Машинка достигла финишной зоны! Время: {FormatTime(elapsedTime)}");
         }
     }
 

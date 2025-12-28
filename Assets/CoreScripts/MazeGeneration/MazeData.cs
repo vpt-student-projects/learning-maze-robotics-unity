@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class MazeData
@@ -34,6 +34,13 @@ public class MazeData
     {
         StartGenerationChunk = new Vector2Int(MazeSizeInChunks.x / 2, MazeSizeInChunks.y / 2);
         StartGenerationCell = new Vector2Int(ChunkSize / 2, ChunkSize / 2);
+    }
+
+    public void SetFinishAreaInCorner()
+    {
+        // Устанавливаем финиш в правом верхнем углу (противоположном от машинки)
+        StartGenerationChunk = new Vector2Int(MazeSizeInChunks.x - 1, MazeSizeInChunks.y - 1);
+        StartGenerationCell = new Vector2Int(ChunkSize - 2, ChunkSize - 2);
     }
 
     private void InitializeChunks()

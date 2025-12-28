@@ -1,4 +1,4 @@
-﻿public static class SelectedAttempt
+public static class SelectedAttempt
 {
     public static bool HasValue;
 
@@ -9,9 +9,9 @@
 
     // ✅ новые поля (галочки)
     public static bool CreateFinishArea;
-    public static bool UseRightHandRule;
+    public static bool CreateFinishAreaInCorner;
 
-    public static void Set(int attemptId, int seed, int width, int height, bool createFinishArea, bool useRightHandRule)
+    public static void Set(int attemptId, int seed, int width, int height, bool createFinishArea, bool createFinishAreaInCorner)
     {
         HasValue = true;
 
@@ -21,7 +21,7 @@
         Height = height;
 
         CreateFinishArea = createFinishArea;
-        UseRightHandRule = useRightHandRule;
+        CreateFinishAreaInCorner = createFinishAreaInCorner;
     }
 
     public static void Clear()
@@ -34,6 +34,6 @@
         Height = 0;
 
         CreateFinishArea = false;
-        UseRightHandRule = false;
+        CreateFinishAreaInCorner = false;
     }
 }

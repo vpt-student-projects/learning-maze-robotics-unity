@@ -347,7 +347,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 48.52
+  m_fontSize: 46.75
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -385,7 +385,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: 0, w: 0}
+  m_margin: {x: 9.7404785, y: 8.991152, z: 10.489716, w: 0.7492809}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1850,7 +1850,7 @@ MonoBehaviour:
   mazeWidthInputField: {fileID: 423802777}
   mazeHeightInputField: {fileID: 355663461}
   finishInMiddleToggle: {fileID: 88486996}
-  rightHandRuleToggle: {fileID: 414208082}
+  finishInCornerToggle: {fileID: 414208082}
   fullMazeViewButton: {fileID: 704490670}
   followCarButton: {fileID: 1699767663}
   firstPersonButton: {fileID: 421765207}
@@ -2833,7 +2833,7 @@ GameObject:
   - component: {fileID: 414208081}
   - component: {fileID: 414208082}
   m_Layer: 5
-  m_Name: ToggleRightHand
+  m_Name: ToggleFinishInCorner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -6656,8 +6656,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "\u041F\u0440\u0430\u0432\u0438\u043B\u043E \u043F\u0440\u0430\u0432\u043E\u0439
-    \u0440\u0443\u043A\u0438"
+  m_text: "\u0424\u0438\u043D\u0438\u0448 \u0432 \u0443\u0433\u043B\u0443"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -6684,7 +6683,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 14
+  m_fontSize: 17.9
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -7292,8 +7291,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   chunkSize: 4
   mazeSizeInChunks: {x: 3, y: 3}
-  useRightHandRule: 0
   createFinishArea: 0
+  createFinishAreaInCorner: 0
   chunkOffset: {x: 0, y: 0, z: 0}
   cellOffset: {x: 0, y: 0, z: 0}
   wallOffset: {x: 0, y: 0, z: 0}

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -33,7 +33,7 @@ public class AttemptsListMenu : MonoBehaviour
 
         // ✅ новые поля из БД
         public bool create_finish_area;
-        public bool use_right_hand_rule;
+        public bool create_finish_area_in_corner;
     }
 
     void OnEnable() => Refresh();
@@ -77,12 +77,12 @@ public class AttemptsListMenu : MonoBehaviour
             int h = a.maze_height;
 
             bool finishCenter = a.create_finish_area;
-            bool rightHand = a.use_right_hand_rule;
+            bool finishCorner = a.create_finish_area_in_corner;
 
             btn.onClick.AddListener(() =>
             {
                 // ✅ передаём галочки тоже
-                SelectedAttempt.Set(id, seed, w, h, finishCenter, rightHand);
+                SelectedAttempt.Set(id, seed, w, h, finishCenter, finishCorner);
                 SceneManager.LoadScene(gameSceneName);
             });
         }

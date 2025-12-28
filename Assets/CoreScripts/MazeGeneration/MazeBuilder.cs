@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class MazeBuilder
@@ -22,8 +22,13 @@ public class MazeBuilder
 
         if (generator.createFinishArea)
         {
-            Debug.Log("🎯 Creating finish area...");
-            CreateFinishArea();
+            Debug.Log("🎯 Creating finish area in middle...");
+            CreateFinishAreaInMiddle();
+        }
+        else if (generator.createFinishAreaInCorner)
+        {
+            Debug.Log("🎯 Creating finish area in corner...");
+            CreateFinishAreaInCorner();
         }
 
         Debug.Log("🔨 Generating maze structure...");
@@ -38,14 +43,14 @@ public class MazeBuilder
         Debug.Log("✅ Maze generation completed!");
     }
 
-    private void CreateFinishArea()
+    private void CreateFinishAreaInMiddle()
     {
         int centerChunkX = mazeData.StartGenerationChunk.x;
         int centerChunkZ = mazeData.StartGenerationChunk.y;
         int centerCellX = mazeData.StartGenerationCell.x;
         int centerCellY = mazeData.StartGenerationCell.y;
 
-        Debug.Log($"🎯 Finish area at Chunk({centerChunkX},{centerChunkZ}) Cell({centerCellX},{centerCellY})");
+        Debug.Log($"🎯 Finish area in middle at Chunk({centerChunkX},{centerChunkZ}) Cell({centerCellX},{centerCellY})");
 
         mazeData.StartGenerationCells.Clear();
         var chunk = mazeData.Chunks[centerChunkX, centerChunkZ];
@@ -95,9 +100,72 @@ public class MazeBuilder
         }
     }
 
+    private void CreateFinishAreaInCorner()
+    {
+        // Финиш в правом верхнем углу (противоположном от машинки)
+        // Машинка стартует в (0,0) chunk, (0,0) cell
+        // Финиш будет в (maxX, maxZ) chunk, (chunkSize-2, chunkSize-2) to (chunkSize-1, chunkSize-1) cell
+        mazeData.SetFinishAreaInCorner();
+        
+        int cornerChunkX = mazeData.StartGenerationChunk.x;
+        int cornerChunkZ = mazeData.StartGenerationChunk.y;
+        int cornerCellX = mazeData.StartGenerationCell.x;
+        int cornerCellY = mazeData.StartGenerationCell.y;
+
+        Debug.Log($"🎯 Finish area in corner at Chunk({cornerChunkX},{cornerChunkZ}) Cell({cornerCellX},{cornerCellY})");
+
+        mazeData.StartGenerationCells.Clear();
+
+        var chunk = mazeData.Chunks[cornerChunkX, cornerChunkZ];
+
+        if (chunk == null)
+        {
+            Debug.LogError($"❌ Chunk not found at ({cornerChunkX},{cornerChunkZ})");
+            return;
+        }
+
+        for (int offsetX = 0; offsetX < 2; offsetX++)
+        {
+            for (int offsetY = 0; offsetY < 2; offsetY++)
+            {
+                int cellX = cornerCellX + offsetX;
+                int cellY = cornerCellY + offsetY;
+
+                if (cellX >= 0 && cellX < mazeData.ChunkSize && cellY >= 0 && cellY < mazeData.ChunkSize)
+                {
+                    mazeData.StartGenerationCells.Add(new Vector2Int(cellX, cellY));
+                    Debug.Log($"   ✅ Added finish cell: ({cellX},{cellY})");
+
+                    if (offsetX == 0 && offsetY == 0)
+                    {
+                        chunk.RemoveVerticalWall(cellX + 1, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY + 1);
+                    }
+                    else if (offsetX == 1 && offsetY == 0)
+                    {
+                        chunk.RemoveVerticalWall(cellX, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY + 1);
+                    }
+                    else if (offsetX == 0 && offsetY == 1)
+                    {
+                        chunk.RemoveVerticalWall(cellX + 1, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY);
+                    }
+                    else if (offsetX == 1 && offsetY == 1)
+                    {
+                        chunk.RemoveVerticalWall(cellX, cellY);
+                        chunk.RemoveHorizontalWall(cellX, cellY);
+                    }
+
+                    chunk.Visited[cellX, cellY] = true;
+                }
+            }
+        }
+    }
+
     private void GenerateMazeFromStartPoint()
     {
-        if (generator.createFinishArea)
+        if (generator.createFinishArea || generator.createFinishAreaInCorner)
         {
             foreach (var startCell in mazeData.StartGenerationCells)
             {

@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -29,7 +29,7 @@ public class MazeMenuController : MonoBehaviour
 
     [Header("Дополнительные настройки")]
     [SerializeField] private Toggle finishInMiddleToggle;
-    [SerializeField] private Toggle rightHandRuleToggle;
+    [SerializeField] private Toggle finishInCornerToggle;
 
     [Header("Управление камерой")]
     [SerializeField] private Button fullMazeViewButton;
@@ -228,10 +228,10 @@ public class MazeMenuController : MonoBehaviour
             finishInMiddleToggle.onValueChanged.AddListener(OnFinishInMiddleChanged);
         }
 
-        if (rightHandRuleToggle != null)
+        if (finishInCornerToggle != null)
         {
-            rightHandRuleToggle.onValueChanged.RemoveAllListeners();
-            rightHandRuleToggle.onValueChanged.AddListener(OnRightHandRuleChanged);
+            finishInCornerToggle.onValueChanged.RemoveAllListeners();
+            finishInCornerToggle.onValueChanged.AddListener(OnFinishInCornerChanged);
         }
 
         // Кнопки управления камерой
@@ -305,10 +305,10 @@ public class MazeMenuController : MonoBehaviour
             Debug.Log($"   Maze Height: {mazeGenerator.mazeSizeInChunks.y}");
         }
 
-        if (rightHandRuleToggle != null)
+        if (finishInCornerToggle != null)
         {
-            rightHandRuleToggle.isOn = mazeGenerator.useRightHandRule;
-            Debug.Log($"   Right Hand Rule: {mazeGenerator.useRightHandRule}");
+            finishInCornerToggle.isOn = mazeGenerator.createFinishAreaInCorner;
+            Debug.Log($"   Финиш в углу: {mazeGenerator.createFinishAreaInCorner}");
         }
 
         // Устанавливаем сложность по умолчанию (Средняя)
@@ -448,7 +448,7 @@ public class MazeMenuController : MonoBehaviour
         mazeGenerator.chunkSize = 4;
         mazeGenerator.mazeSizeInChunks = new Vector2Int(3, 3);
         mazeGenerator.createFinishArea = true;  // ФИНИШ ВКЛЮЧЕН ПО УМОЛЧАНИЮ
-        mazeGenerator.useRightHandRule = true;
+        mazeGenerator.createFinishAreaInCorner = false;
         mazeGenerator.useRandomSeed = true;
 
         // Генерируем случайный seed
@@ -519,13 +519,25 @@ public class MazeMenuController : MonoBehaviour
     void OnFinishInMiddleChanged(bool value)
     {
         mazeGenerator.createFinishArea = value;
+        // Если включаем финиш в середине, выключаем финиш в углу
+        if (value && finishInCornerToggle != null)
+        {
+            finishInCornerToggle.isOn = false;
+            mazeGenerator.createFinishAreaInCorner = false;
+        }
         Debug.Log($"🎯 Финиш в середине: {(value ? "ВКЛ" : "ВЫКЛ")}");
     }
 
-    void OnRightHandRuleChanged(bool value)
+    void OnFinishInCornerChanged(bool value)
     {
-        mazeGenerator.useRightHandRule = value;
-        Debug.Log($"✋ Правило правой руки: {(value ? "ВКЛ" : "ВЫКЛ")}");
+        mazeGenerator.createFinishAreaInCorner = value;
+        // Если включаем финиш в углу, выключаем финиш в середине
+        if (value && finishInMiddleToggle != null)
+        {
+            finishInMiddleToggle.isOn = false;
+            mazeGenerator.createFinishArea = false;
+        }
+        Debug.Log($"🎯 Финиш в углу: {(value ? "ВКЛ" : "ВЫКЛ")}");
     }
 
     void OnDifficultyChanged(int difficultyIndex)
@@ -564,17 +576,17 @@ public class MazeMenuController : MonoBehaviour
         if (mazeHeightInputField != null && int.TryParse(mazeHeightInputField.text, out int height))
             mazeGenerator.mazeSizeInChunks.y = height;
 
-        // Остальные настройки - ВАЖНО: финиш в середине
+        // Остальные настройки - финиш в середине или в углу
         if (finishInMiddleToggle != null)
         {
             mazeGenerator.createFinishArea = finishInMiddleToggle.isOn;
             Debug.Log($"   Финиш в середине: {(finishInMiddleToggle.isOn ? "ВКЛ" : "ВЫКЛ")}");
         }
 
-        if (rightHandRuleToggle != null)
+        if (finishInCornerToggle != null)
         {
-            mazeGenerator.useRightHandRule = rightHandRuleToggle.isOn;
-            Debug.Log($"   Правило правой руки: {(rightHandRuleToggle.isOn ? "ВКЛ" : "ВЫКЛ")}");
+            mazeGenerator.createFinishAreaInCorner = finishInCornerToggle.isOn;
+            Debug.Log($"   Финиш в углу: {(finishInCornerToggle.isOn ? "ВКЛ" : "ВЫКЛ")}");
         }
 
         // Настройки seed

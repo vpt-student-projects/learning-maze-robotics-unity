@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
@@ -8,8 +8,8 @@ public class MazeGenerator : MonoBehaviour
     [Header("Настройки лабиринта")]
     public int chunkSize = 4;
     public Vector2Int mazeSizeInChunks = new Vector2Int(3, 3);
-    public bool useRightHandRule = true;
     public bool createFinishArea = true;
+    public bool createFinishAreaInCorner = false;
 
     [Header("Настройки смещения")]
     public Vector3 chunkOffset = Vector3.zero;

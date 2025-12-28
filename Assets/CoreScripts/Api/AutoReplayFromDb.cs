@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Text;
 using UnityEngine;
@@ -43,9 +43,9 @@ public class AutoReplayFromDb : MonoBehaviour
 
         // ✅ КЛЮЧЕВОЕ: галочки из БД
         mazeGenerator.createFinishArea = SelectedAttempt.CreateFinishArea;
-        mazeGenerator.useRightHandRule = SelectedAttempt.UseRightHandRule;
+        mazeGenerator.createFinishAreaInCorner = SelectedAttempt.CreateFinishAreaInCorner;
 
-        Debug.Log($"[AutoReplay] attempt={SelectedAttempt.AttemptId} seed={SelectedAttempt.Seed} size={SelectedAttempt.Width}x{SelectedAttempt.Height} finishCenter={SelectedAttempt.CreateFinishArea} rightHand={SelectedAttempt.UseRightHandRule}");
+        Debug.Log($"[AutoReplay] attempt={SelectedAttempt.AttemptId} seed={SelectedAttempt.Seed} size={SelectedAttempt.Width}x{SelectedAttempt.Height} finishCenter={SelectedAttempt.CreateFinishArea} finishCorner={SelectedAttempt.CreateFinishAreaInCorner}");
 
         // 2) Генерируем лабиринт
         mazeGenerator.GenerateMazeWithCurrentSeed();
