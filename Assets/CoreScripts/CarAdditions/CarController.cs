@@ -724,6 +724,24 @@ public class CarController : MonoBehaviour
         return !CanMoveToDirection(direction);
     }
 
+    // Для API: позволяет заранее валидировать команду движения вперед.
+    public bool CanMoveForward()
+    {
+        return !CheckWallAhead();
+    }
+
+    // Для API: проверка движения назад относительно текущего направления.
+    public bool CanMoveBackward()
+    {
+        if (!IsCarReady() || mazeData == null || nodeMap == null)
+        {
+            return false;
+        }
+
+        Vector2Int backwardDirection = directionVectors[(currentDirection + 2) % 4];
+        return CanMoveToDirection(backwardDirection);
+    }
+
     void OnDrawGizmos()
     {
         if (currentNode != null && carInstance != null && showDebugLines && mazeGenerator != null)

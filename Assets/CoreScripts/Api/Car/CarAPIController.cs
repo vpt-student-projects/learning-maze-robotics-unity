@@ -153,8 +153,6 @@ public class CarAPIController : MonoBehaviour
             if (cancellationTokenSource != null)
             {
                 cancellationTokenSource.Cancel();
-                // Даем немного времени на обработку отмены
-                Thread.Sleep(100);
             }
         }
         catch (ObjectDisposedException)
@@ -799,6 +797,11 @@ public class CarAPIController : MonoBehaviour
 
 
                 case "/car/move/forward" when method == "POST":
+                    if (!carController.CanMoveForward())
+                    {
+                        response.StatusCode = 409;
+                        return "{\"status\":\"error\",\"message\":\"Cannot move forward: wall or blocked path\"}";
+                    }
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.MoveForward();
@@ -808,6 +811,11 @@ public class CarAPIController : MonoBehaviour
 
 
                 case "/car/move/backward" when method == "POST":
+                    if (!carController.CanMoveBackward())
+                    {
+                        response.StatusCode = 409;
+                        return "{\"status\":\"error\",\"message\":\"Cannot move backward: wall or blocked path\"}";
+                    }
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.MoveBackward();
@@ -848,26 +856,30 @@ public class CarAPIController : MonoBehaviour
             Vector2Int cell = Vector2Int.zero;
             string direction = "unknown";
 
-            System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+            using (System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false))
+            {
+                mainThreadActions.Enqueue(() => {
+                    try
+                    {
+                        chunk = carController.GetCurrentChunkCoordinates();
+                        cell = carController.GetCurrentCellCoordinates();
+                        direction = carController.GetCurrentDirectionName();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error getting car status: {ex.Message}");
+                    }
+                    finally
+                    {
+                        doneEvent.Set();
+                    }
+                });
 
-            mainThreadActions.Enqueue(() => {
-                try
+                if (!doneEvent.WaitOne(200))
                 {
-                    chunk = carController.GetCurrentChunkCoordinates();
-                    cell = carController.GetCurrentCellCoordinates();
-                    direction = carController.GetCurrentDirectionName();
+                    return "{\"status\":\"error\",\"message\":\"Timed out while reading car status\"}";
                 }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"Error getting car status: {ex.Message}");
-                }
-                finally
-                {
-                    doneEvent.Set();
-                }
-            });
-
-            doneEvent.WaitOne(100);
+            }
 
             return $"{{\"status\":\"operational\",\"position\":{{\"chunk\":{{\"x\":{chunk.x},\"y\":{chunk.y}}},\"cell\":{{\"x\":{cell.x},\"y\":{cell.y}}},\"direction\":\"{EscapeJsonString(direction)}\"}}}}";
         }
@@ -910,26 +922,30 @@ public class CarAPIController : MonoBehaviour
             Vector2Int cell = Vector2Int.zero;
             string direction = "unknown";
 
-            System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+            using (System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false))
+            {
+                mainThreadActions.Enqueue(() => {
+                    try
+                    {
+                        chunk = carController.GetCurrentChunkCoordinates();
+                        cell = carController.GetCurrentCellCoordinates();
+                        direction = carController.GetCurrentDirectionName();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogError($"Error getting car position: {ex.Message}");
+                    }
+                    finally
+                    {
+                        doneEvent.Set();
+                    }
+                });
 
-            mainThreadActions.Enqueue(() => {
-                try
+                if (!doneEvent.WaitOne(200))
                 {
-                    chunk = carController.GetCurrentChunkCoordinates();
-                    cell = carController.GetCurrentCellCoordinates();
-                    direction = carController.GetCurrentDirectionName();
+                    return "{\"status\":\"error\",\"message\":\"Timed out while reading car position\"}";
                 }
-                catch (Exception ex)
-                {
-                    Debug.LogError($"Error getting car position: {ex.Message}");
-                }
-                finally
-                {
-                    doneEvent.Set();
-                }
-            });
-
-            doneEvent.WaitOne(100);
+            }
 
             int chunkSize = GetMazeChunkSize();
 
@@ -967,27 +983,31 @@ public class CarAPIController : MonoBehaviour
 
             if (carController != null)
             {
-                System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false);
+                using (System.Threading.ManualResetEvent doneEvent = new System.Threading.ManualResetEvent(false))
+                {
+                    mainThreadActions.Enqueue(() => {
+                        try
+                        {
+                            carReady = carController.IsCarReady();
+                            chunk = carController.GetCurrentChunkCoordinates();
+                            cell = carController.GetCurrentCellCoordinates();
+                            direction = carController.GetCurrentDirectionName();
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.LogError($"Error in full status: {ex.Message}");
+                        }
+                        finally
+                        {
+                            doneEvent.Set();
+                        }
+                    });
 
-                mainThreadActions.Enqueue(() => {
-                    try
+                    if (!doneEvent.WaitOne(200))
                     {
-                        carReady = carController.IsCarReady();
-                        chunk = carController.GetCurrentChunkCoordinates();
-                        cell = carController.GetCurrentCellCoordinates();
-                        direction = carController.GetCurrentDirectionName();
+                        carReady = false;
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.LogError($"Error in full status: {ex.Message}");
-                    }
-                    finally
-                    {
-                        doneEvent.Set();
-                    }
-                });
-
-                doneEvent.WaitOne(100);
+                }
             }
 
             if (carReady)
