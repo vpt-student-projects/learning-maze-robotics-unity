@@ -1,9 +1,11 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using System;
 
 public class CarController : MonoBehaviour
 {
+    public static event Action<CarController, LidarController> CarSpawned;
 
     public bool isRecording = false;
     public bool isReplaying = false;
@@ -282,6 +284,18 @@ public class CarController : MonoBehaviour
 
         currentDirection = 0;
         UpdateCarRotationImmediate();
+        NotifyCarSpawned();
+    }
+
+    private void NotifyCarSpawned()
+    {
+        LidarController spawnedLidar = null;
+        if (carInstance != null)
+        {
+            spawnedLidar = carInstance.GetComponent<LidarController>();
+        }
+
+        CarSpawned?.Invoke(this, spawnedLidar);
     }
 
     public void SetCarPosition(int chunkX, int chunkZ, int cellX, int cellZ)

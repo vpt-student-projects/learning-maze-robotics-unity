@@ -72,15 +72,7 @@ public class CarAPIController : MonoBehaviour
         serverStartTime = Time.time;
         cacheInitialized = true;
 
-        if (carController == null)
-        {
-            carController = FindAnyObjectByType<CarController>();
-        }
-
-        if (lidarController == null && enableLidarAPI)
-        {
-            lidarController = FindAnyObjectByType<LidarController>();
-        }
+        TryResolveRuntimeControllers();
 
         mazeGenerator = FindAnyObjectByType<MazeGenerator>();
 
@@ -88,6 +80,16 @@ public class CarAPIController : MonoBehaviour
         {
             StartCoroutine(DelayedStartServer());
         }
+    }
+
+    private void OnEnable()
+    {
+        CarController.CarSpawned += HandleCarSpawned;
+    }
+
+    private void OnDisable()
+    {
+        CarController.CarSpawned -= HandleCarSpawned;
     }
 
     void Update()
@@ -108,10 +110,38 @@ public class CarAPIController : MonoBehaviour
 
         if (Time.frameCount % 300 == 0)
         {
-            if (isServerRunning && carController == null)
-            {
-                carController = FindAnyObjectByType<CarController>();
-            }
+            TryResolveRuntimeControllers();
+        }
+    }
+
+    private void TryResolveRuntimeControllers()
+    {
+        if (carController == null)
+        {
+            carController = FindAnyObjectByType<CarController>();
+        }
+
+        if (enableLidarAPI && lidarController == null)
+        {
+            lidarController = FindAnyObjectByType<LidarController>();
+        }
+    }
+
+    private void HandleCarSpawned(CarController spawnedCarController, LidarController spawnedLidarController)
+    {
+        if (spawnedCarController != null)
+        {
+            carController = spawnedCarController;
+        }
+
+        if (enableLidarAPI && spawnedLidarController != null)
+        {
+            lidarController = spawnedLidarController;
+        }
+
+        if (autoStartServer && !isServerRunning && carController != null)
+        {
+            StartServer();
         }
     }
 

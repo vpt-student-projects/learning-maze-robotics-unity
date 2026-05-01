@@ -68,6 +68,9 @@ public class LidarController : MonoBehaviour
     private float lastScanTime;
     private float lastConsoleOutputTime;
     private bool isInitialized = false;
+    
+    // Событие: вызывается после завершения очередного цикла сканирования.
+    public event Action<LidarController> ScanCompleted;
 
     void Start()
     {
@@ -116,6 +119,8 @@ public class LidarController : MonoBehaviour
 
     private void InitializeLidarPoint(LidarPoint point)
     {
+        ValidateLidarPointConfig(point);
+
         // Инициализация 360° лидара
         if (point.enable360Lidar)
         {
@@ -137,7 +142,7 @@ public class LidarController : MonoBehaviour
             point.cached90Angles = new float[point.lidar90Points];
 
             float halfAngle = point.lidar90Angle / 2f;
-            float angleStep = point.lidar90Angle / (point.lidar90Points - 1);
+            float angleStep = point.lidar90Points > 1 ? point.lidar90Angle / (point.lidar90Points - 1) : 0f;
             for (int i = 0; i < point.lidar90Points; i++)
             {
                 point.cached90Angles[i] = -halfAngle + (i * angleStep);
@@ -163,6 +168,8 @@ public class LidarController : MonoBehaviour
                 ScanLidarPoint(point);
             }
         }
+
+        ScanCompleted?.Invoke(this);
     }
 
     private void ScanLidarPoint(LidarPoint point)
@@ -192,7 +199,9 @@ public class LidarController : MonoBehaviour
     {
         for (int i = 0; i < point.lidar360Points; i++)
         {
-            if (Physics.Raycast(origin, point.cached360Directions[i], out RaycastHit hit, point.lidar360Range, wallLayerMask))
+            // Направление задаётся локально, затем преобразуется в мировое — чтобы лидар вращался вместе с машинкой.
+            Vector3 worldDirection = point.pointTransform.TransformDirection(point.cached360Directions[i]);
+            if (Physics.Raycast(origin, worldDirection, out RaycastHit hit, point.lidar360Range, wallLayerMask))
             {
                 point.lidar360Results[i] = hit.distance;
             }
@@ -497,7 +506,8 @@ public class LidarController : MonoBehaviour
             {
                 float distance = point.lidar360Results[i];
                 Color color = distance < point.lidar360Range ? debugColor360 : debugColor360 * 0.3f;
-                Debug.DrawRay(origin, point.cached360Directions[i] * distance, color);
+                Vector3 worldDirection = point.pointTransform.TransformDirection(point.cached360Directions[i]);
+                Debug.DrawRay(origin, worldDirection * distance, color);
             }
         }
 
@@ -542,4 +552,27 @@ public class LidarController : MonoBehaviour
     }
 
     public bool IsInitialized() => isInitialized;
+
+    private void ValidateLidarPointConfig(LidarPoint point)
+    {
+        if (point == null) return;
+
+        if (point.enable360Lidar)
+        {
+            point.lidar360Points = Mathf.Max(1, point.lidar360Points);
+            point.lidar360Range = Mathf.Max(0.01f, point.lidar360Range);
+        }
+
+        if (point.enable90Lidar)
+        {
+            point.lidar90Points = Mathf.Max(1, point.lidar90Points);
+            point.lidar90Range = Mathf.Max(0.01f, point.lidar90Range);
+            point.lidar90Angle = Mathf.Clamp(point.lidar90Angle, 1f, 360f);
+        }
+
+        if (point.enableSingleLidar)
+        {
+            point.singleLidarRange = Mathf.Max(0.01f, point.singleLidarRange);
+        }
+    }
 }
