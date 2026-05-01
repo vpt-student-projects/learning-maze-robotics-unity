@@ -808,7 +808,7 @@ public class CarAPIController : MonoBehaviour
 
             switch (path)
             {
-                case "/car/turn/left" when method == "POST":
+                case "/car/turn/left" when method == "POST" || method == "GET":
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.TurnLeft();
@@ -817,7 +817,7 @@ public class CarAPIController : MonoBehaviour
                     return $"{{\"status\":\"success\",\"action\":\"turn_left\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
 
-                case "/car/turn/right" when method == "POST":
+                case "/car/turn/right" when method == "POST" || method == "GET":
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.TurnRight();
@@ -826,7 +826,7 @@ public class CarAPIController : MonoBehaviour
                     return $"{{\"status\":\"success\",\"action\":\"turn_right\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
 
-                case "/car/move/forward" when method == "POST":
+                case "/car/move/forward" when method == "POST" || method == "GET":
                     if (!carController.CanMoveForward())
                     {
                         response.StatusCode = 409;
@@ -840,7 +840,7 @@ public class CarAPIController : MonoBehaviour
                     return $"{{\"status\":\"success\",\"action\":\"move_forward\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
 
 
-                case "/car/move/backward" when method == "POST":
+                case "/car/move/backward" when method == "POST" || method == "GET":
                     if (!carController.CanMoveBackward())
                     {
                         response.StatusCode = 409;
