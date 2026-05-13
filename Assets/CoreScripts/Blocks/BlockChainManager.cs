@@ -146,7 +146,7 @@ public class BlockChainManager : MonoBehaviour
         }
 
         // Выравниваем позиции по цепи
-        LayoutFromChainRoot(moving);
+       // LayoutFromChainRoot(moving);
     }
 
     private void LayoutFromChainRoot(BlockCommand anyInChain)
