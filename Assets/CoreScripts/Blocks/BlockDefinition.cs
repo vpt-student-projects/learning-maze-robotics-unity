@@ -6,9 +6,25 @@ public enum BlockType
     MoveForward,
     MoveBackward,
     TurnLeft,
-    TurnRight
+    TurnRight,
+    IfElse
+}
+public enum LidarSide
+{
+    Forward,
+    Right,
+    Backward,
+    Left
 }
 
+public enum CompareOperator
+{
+    LessOrEqual,
+    GreaterOrEqual,
+    Less,
+    Greater,
+    Equal
+}
 
 [CreateAssetMenu(menuName = "Blocks/Block Definition", fileName = "BlockDefinition")]
 public class BlockDefinition : ScriptableObject

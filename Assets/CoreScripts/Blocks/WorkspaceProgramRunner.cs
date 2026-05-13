@@ -5,6 +5,7 @@ public class WorkspaceProgramRunner : MonoBehaviour
 {
     public CarController car;
     public BlockChainManager chain;
+    public LidarController lidar;
 
     private Coroutine runCo;
 
@@ -21,80 +22,74 @@ public class WorkspaceProgramRunner : MonoBehaviour
     }
 
     private IEnumerator RunCo()
-{
-    if (car == null)
     {
-        Debug.LogError("RUNNER: CarController не назначен!");
-        yield break;
-    }
-    if (chain == null)
-    {
-        Debug.LogError("RUNNER: BlockChainManager не назначен!");
-        yield break;
-    }
+        if (car == null)
+        {
+            Debug.LogError("RUNNER: CarController не назначен!");
+            yield break;
+        }
 
-    if (!car.IsCarReady())
-    {
-        Debug.LogWarning("RUNNER: car.IsCarReady()=false -> InitializeCar()");
-        car.InitializeCar();
-    }
+        if (chain == null)
+        {
+            Debug.LogError("RUNNER: BlockChainManager не назначен!");
+            yield break;
+        }
 
-    yield return new WaitUntil(() => car.IsCarReady());
-    Debug.Log("RUNNER: car ready ✅");
+        if (!car.IsCarReady())
+            car.InitializeCar();
 
-    // 🔥 ГЛАВНЫЙ ФИКС: перед запуском пересобираем blocks из воркспейса
-    if (chain.workspaceRoot != null)
-    {
-        chain.RebuildFromWorkspace(chain.workspaceRoot);
-        Debug.Log($"RUNNER: chain rebuilt, blocks count = {chain.DebugCount}");
-    }
-    else
-    {
-        Debug.LogWarning("RUNNER: chain.workspaceRoot не назначен (WorkspaceContent)!");
-    }
+        yield return new WaitUntil(() => car.IsCarReady());
 
-    var cur = chain.FindProgramStart();
-    if (cur == null)
-    {
-        Debug.LogWarning("RUNNER: Start программы не найден. (цепочка пустая или не связана)");
-        yield break;
-    }
+        if (chain.workspaceRoot != null)
+        {
+            chain.RebuildFromWorkspace(chain.workspaceRoot);
+            chain.RefreshIfElseBranches();
+            Debug.Log($"RUNNER: chain rebuilt, blocks count = {chain.DebugCount}");
+        }
 
-    Debug.Log($"RUNNER: start block = {cur.name}, type = {cur.type}");
+        BlockCommand start = chain.FindProgramStart();
 
-    if (cur.type == BlockType.Start)
-        cur = cur.next;
+        if (start == null)
+        {
+            Debug.LogWarning("RUNNER: Start программы не найден");
+            yield break;
+        }
 
-    if (cur == null)
-    {
-        Debug.LogWarning("RUNNER: После Start нет команд (Start.next == null)");
-        yield break;
+        if (start.type == BlockType.Start)
+            start = start.next;
+
+        yield return ExecuteChain(start);
+
+        Debug.Log("RUNNER: done ✅");
+        runCo = null;
     }
 
-    int step = 0;
-    while (cur != null)
+    private IEnumerator ExecuteChain(BlockCommand start)
     {
-        step++;
-        Debug.Log($"RUNNER STEP {step}: {cur.name} type={cur.type}");
-        yield return Execute(cur);
-        cur = cur.next;
+        BlockCommand cur = start;
+        int step = 0;
+
+        while (cur != null)
+        {
+            step++;
+            Debug.Log($"RUNNER STEP {step}: {cur.name} type={cur.type}");
+
+            yield return Execute(cur);
+
+            cur = cur.next;
+        }
     }
-
-    Debug.Log("RUNNER: done ✅");
-    runCo = null;
-}
-
 
     private IEnumerator Execute(BlockCommand cmd)
     {
-        // ждём, пока не двигается
-        while (!car.IsCarReady() || car.isMoving) yield return null;
+        while (!car.IsCarReady() || car.isMoving)
+            yield return null;
 
         switch (cmd.type)
         {
             case BlockType.MoveForward:
-                car.MoveForward();                      // внутри есть проверки ready/moving/rotating【:contentReference[oaicite:2]{index=2}】
-                while (car.isMoving) yield return null;  // ждём пока доедет【:contentReference[oaicite:3]{index=3}】
+                car.MoveForward();
+                while (car.isMoving) yield return null;
                 break;
 
             case BlockType.MoveBackward:
@@ -104,7 +99,7 @@ public class WorkspaceProgramRunner : MonoBehaviour
 
             case BlockType.TurnLeft:
                 car.TurnLeft();
-                yield return new WaitForSeconds(car.rotationAnimationTime + 0.02f); // isRotating приватный【:contentReference[oaicite:4]{index=4}】
+                yield return new WaitForSeconds(car.rotationAnimationTime + 0.02f);
                 break;
 
             case BlockType.TurnRight:
@@ -112,9 +107,102 @@ public class WorkspaceProgramRunner : MonoBehaviour
                 yield return new WaitForSeconds(car.rotationAnimationTime + 0.02f);
                 break;
 
+            case BlockType.IfElse:
+                bool conditionResult = CheckIfCondition(cmd);
+
+                Debug.Log($"RUNNER IF: result = {conditionResult}");
+
+                if (conditionResult)
+                    yield return ExecuteChain(cmd.trueBranchStart);
+                else
+                    yield return ExecuteChain(cmd.falseBranchStart);
+
+                break;
+
             default:
                 Debug.LogWarning("RUNNER: неизвестный тип блока: " + cmd.type);
                 break;
+        }
+    }
+
+    private bool CheckIfCondition(BlockCommand cmd)
+    {
+        if (lidar == null)
+        {
+            Debug.LogError("RUNNER: LidarController не назначен!");
+            return false;
+        }
+
+        float currentDistance = GetLidarDistance(cmd.lidarSide);
+
+        Debug.Log(
+            $"IF CHECK: lidar={cmd.lidarSide}, distance={currentDistance:F3}m, " +
+            $"operator={cmd.compare}, target={cmd.distanceMeters:F3}m"
+        );
+
+        switch (cmd.compare)
+        {
+            case CompareOperator.Less:
+                return currentDistance < cmd.distanceMeters;
+
+            case CompareOperator.LessOrEqual:
+                return currentDistance <= cmd.distanceMeters;
+
+            case CompareOperator.Greater:
+                return currentDistance > cmd.distanceMeters;
+
+            case CompareOperator.GreaterOrEqual:
+                return currentDistance
+
+
+>= cmd.distanceMeters;
+
+            case CompareOperator.Equal:
+                return Mathf.Approximately(currentDistance, cmd.distanceMeters);
+
+            default:
+                return false;
+        }
+    }
+
+    private float GetLidarDistance(LidarSide side)
+    {
+        if (lidar == null)
+            return -1f;
+
+        for (int i = 0; i < lidar.lidarPoints.Count; i++)
+        {
+            LidarPoint point = lidar.GetLidarPoint(i);
+
+            if (point == null || !point.enabled || !point.enableSingleLidar)
+                continue;
+
+            if (MatchesDirection(point.singleLidarDirection, side))
+                return point.singleLidarResult;
+        }
+
+        Debug.LogWarning($"RUNNER: не найден SingleLidar для стороны {side}");
+        return -1f;
+    }
+
+    private bool MatchesDirection(LidarPoint.SingleLidarDirection lidarDirection, LidarSide side)
+    {
+        switch (side)
+        {
+            case LidarSide.Forward:
+                return lidarDirection == LidarPoint.SingleLidarDirection.Forward;
+
+            case LidarSide.Right:
+                return lidarDirection == LidarPoint.SingleLidarDirection.Right;
+
+            case LidarSide.Backward:
+                return lidarDirection == LidarPoint.SingleLidarDirection.Backward;
+
+            case LidarSide.Left:
+                return lidarDirection == LidarPoint.SingleLidarDirection.Left;
+
+            default:
+                return false;
         }
     }
 }

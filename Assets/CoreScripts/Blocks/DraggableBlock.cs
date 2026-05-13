@@ -26,6 +26,7 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     // normal drag
     private Transform originalParent;
     private Vector2 originalAnchoredPos;
+    private Vector2 dragOffset;
     private RectTransform myRT;
 
     private void Awake()
@@ -126,6 +127,18 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         originalAnchoredPos = myRT.anchoredPosition;
 
         // переносим в DragLayer (а не в Canvas и не куда попало)
+        Vector2 pointerLocalBefore;
+        RectTransform parentBefore = myRT.parent as RectTransform;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            parentBefore,
+            eventData.position,
+            eventData.pressEventCamera,
+            out pointerLocalBefore
+        );
+
+        dragOffset = myRT.anchoredPosition - pointerLocalBefore;
+
         transform.SetParent(dragLayer, true);
         transform.SetAsLastSibling();
 
@@ -137,11 +150,28 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     {
         if (isPaletteSample)
         {
-            if (cloneRT != null) SetRectToPointer(cloneRT, eventData);
+            if (cloneRT != null) SetRectToPointerWithOffset(cloneRT, eventData);
             return;
         }
 
         if (myRT != null) SetRectToPointer(myRT, eventData);
+    }
+
+    private void SetRectToPointerWithOffset(RectTransform target, PointerEventData eventData)
+    {
+        if (target == null || rootCanvas == null) return;
+
+        RectTransform parent = target.parent as RectTransform;
+        if (parent == null) return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            parent,
+            eventData.position,
+            eventData.pressEventCamera,
+            out var localPoint
+        );
+
+        target.anchoredPosition = localPoint + dragOffset;
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -154,6 +184,7 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             if (cloneGO == null) return;
 
             var zone = FindDropZoneUnderPointer(eventData);
+
             if (zone != null)
             {
                 cloneCG.blocksRaycasts = true;
@@ -161,16 +192,22 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
                 zone.Accept(cloneGO.transform);
 
-                // ПОСЛЕ смены parent — выставим позицию корректно в локале workspaceContent
-                var workspaceRT = zone.workspaceContent as RectTransform;
-                if (workspaceRT != null)
-                    SetRectToPointer(cloneRT, eventData, workspaceRT);
+                var newCmd = cloneGO.GetComponent<BlockCommand>();
 
-                var cmd = cloneGO.GetComponent<BlockCommand>();
-                if (cmd != null && chainManager != null)
+                if (newCmd != null && chainManager != null)
                 {
-                    chainManager.RegisterBlock(cmd);
-                    chainManager.TrySnap(cmd);
+                    chainManager.RegisterBlock(newCmd);
+
+                    if (zone.zoneType == DropZoneType.Workspace)
+                    {
+                        SetRectToPointer(cloneRT, eventData, zone.workspaceContent as RectTransform);
+                        chainManager.TrySnap(newCmd);
+                    }
+                    else
+                    {
+                        ResetBlockForBranch(cloneRT);
+                        chainManager.RefreshIfElseBranches();
+                    }
                 }
             }
             else
@@ -184,29 +221,35 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             return;
         }
 
-        // обычный блок
         canvasGroup.blocksRaycasts = true;
         canvasGroup.alpha = 1f;
 
         var dropZone = FindDropZoneUnderPointer(eventData);
+
         if (dropZone != null)
         {
             dropZone.Accept(transform);
 
-            var workspaceRT = dropZone.workspaceContent as RectTransform;
-            if (workspaceRT != null)
-                SetRectToPointer(myRT, eventData, workspaceRT);
+            var draggedCmd = GetComponent<BlockCommand>();
 
-            var cmd = GetComponent<BlockCommand>();
-            if (cmd != null && chainManager != null)
+            if (draggedCmd != null && chainManager != null)
             {
-                chainManager.RegisterBlock(cmd);
-                chainManager.TrySnap(cmd);
+                chainManager.RegisterBlock(draggedCmd);
+
+                if (dropZone.zoneType == DropZoneType.Workspace)
+                {
+                    SetRectToPointer(myRT, eventData, dropZone.workspaceContent as RectTransform);
+                    chainManager.TrySnap(draggedCmd);
+                }
+                else
+                {
+                    ResetBlockForBranch(myRT);
+                    chainManager.RefreshIfElseBranches();
+                }
             }
         }
         else
         {
-            // вернуть назад
             if (originalParent != null)
             {
                 transform.SetParent(originalParent, true);
@@ -247,11 +290,42 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         var results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
 
+        DropZone bestZone = null;
+        int bestPriority = -1;
+
         foreach (var r in results)
         {
             var zone = r.gameObject.GetComponentInParent<DropZone>();
-            if (zone != null) return zone;
+            if (zone == null) continue;
+
+            int priority = 0;
+
+            if (zone.zoneType == DropZoneType.Workspace)
+                priority = 1;
+
+            if (zone.zoneType == DropZoneType.IfBranch || zone.zoneType == DropZoneType.ElseBranch)
+                priority = 10;
+
+            if (priority > bestPriority)
+            {
+                bestPriority = priority;
+                bestZone = zone;
+            }
         }
-        return null;
+
+        return bestZone;
+    }
+
+    private void ResetBlockForBranch(RectTransform rt)
+    {
+        if (rt == null) return;
+
+        rt.anchorMin = new Vector2(0.5f, 0.5f);
+        rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+
+        rt.localScale = Vector3.one;
+        rt.localRotation = Quaternion.identity;
+        rt.anchoredPosition = Vector2.zero;
     }
 }

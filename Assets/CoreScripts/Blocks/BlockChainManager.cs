@@ -146,7 +146,7 @@ public class BlockChainManager : MonoBehaviour
         }
 
         // Выравниваем позиции по цепи
-       // LayoutFromChainRoot(moving);
+        RefreshIfElseBranches();
     }
 
     private void LayoutFromChainRoot(BlockCommand anyInChain)
@@ -216,5 +216,105 @@ public class BlockChainManager : MonoBehaviour
         if (top == null) return null;
         while (top.prev != null) top = top.prev;
         return top;
+    }
+
+    //public void RefreshIfElseBranches()
+    //{
+    //    if (workspaceRoot == null) return;
+
+    //    var ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+
+    //    foreach (var ifUI in ifBlocks)
+    //    {
+    //        if (ifUI == null || ifUI.command == null) continue;
+
+    //        ifUI.command.trueBranchStart = FindBranchStart(ifUI.ifContent);
+    //        ifUI.command.falseBranchStart = FindBranchStart(ifUI.elseContent);
+
+    //        Debug.Log(
+    //            $"IF UI REFRESH: {ifUI.command.name} | " +
+    //            $"IF={(ifUI.command.trueBranchStart != null ? ifUI.command.trueBranchStart.name : "empty")} | " +
+    //            $"ELSE={(ifUI.command.falseBranchStart != null ? ifUI.command.falseBranchStart.name : "empty")}"
+    //        );
+    //    }
+    //}
+    public void RefreshIfElseBranches()
+    {
+        if (workspaceRoot == null) return;
+
+        var ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+
+        foreach (var ifUI in ifBlocks)
+        {
+            if (ifUI == null || ifUI.command == null) continue;
+
+            ifUI.command.trueBranchStart = RebuildBranchChain(ifUI.ifContent);
+            ifUI.command.falseBranchStart = RebuildBranchChain(ifUI.elseContent);
+        }
+    }
+
+    private BlockCommand RebuildBranchChain(RectTransform content)
+    {
+        if (content == null) return null;
+
+        BlockCommand first = null;
+        BlockCommand prev = null;
+
+        for (int i = 0; i < content.childCount; i++)
+        {
+            Transform child = content.GetChild(i);
+            BlockCommand cmd = child.GetComponent<BlockCommand>();
+
+            if (cmd == null) continue;
+
+            cmd.prev = null;
+            cmd.next = null;
+
+            if (first == null)
+                first = cmd;
+
+            if (prev != null)
+            {
+                prev.next = cmd;
+                cmd.prev = prev;
+            }
+
+            prev = cmd;
+        }
+
+        return first;
+    }
+    private BlockCommand FindBranchStart(RectTransform container)
+    {
+        if (container == null) return null;
+
+        BlockCommand result = null;
+        float bestY = float.NegativeInfinity;
+
+        var commands = container.GetComponentsInChildren<BlockCommand>(true);
+
+        foreach (var cmd in commands)
+        {
+            if (cmd == null) continue;
+            if (cmd.type == BlockType.IfElse) continue;
+
+            bool prevInsideSameContainer =
+                cmd.prev != null &&
+                cmd.prev.transform.IsChildOf(container);
+
+            if (prevInsideSameContainer)
+                continue;
+
+            var rt = cmd.GetComponent<RectTransform>();
+            if (rt == null) continue;
+
+            if (rt.position.y > bestY)
+            {
+                bestY = rt.position.y;
+                result = cmd;
+            }
+        }
+
+        return result;
     }
 }
