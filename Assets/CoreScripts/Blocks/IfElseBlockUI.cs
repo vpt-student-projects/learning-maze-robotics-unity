@@ -1,18 +1,31 @@
+using System.Collections.Generic;
+using System.Globalization;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class IfElseBlockUI : MonoBehaviour
 {
+    [Header("Command")]
     public BlockCommand command;
 
     [Header("Branch containers")]
     public RectTransform ifContent;
     public RectTransform elseContent;
 
-    [Header("Condition UI")]
+    [Header("Main condition UI")]
     public TMP_Dropdown sideDropdown;
     public TMP_Dropdown compareDropdown;
     public TMP_InputField distanceInput;
+
+    [Header("Extra conditions UI")]
+    public RectTransform conditionsContent;
+    public IfConditionRowUI conditionRowPrefab;
+    public Button addConditionButton;
+
+    private readonly List<IfConditionRowUI> rows = new List<IfConditionRowUI>();
+
+    private bool initialized;
 
     private void Awake()
     {
@@ -22,71 +35,226 @@ public class IfElseBlockUI : MonoBehaviour
 
     private void Start()
     {
-        SetupDropdowns();
-        LoadFromCommand();
+        SetupMainDropdowns();
+        LoadMainFromCommand();
 
-        sideDropdown.onValueChanged.AddListener(OnSideChanged);
-        compareDropdown.onValueChanged.AddListener(OnCompareChanged);
-        distanceInput.onValueChanged.AddListener(OnDistanceChanged);
+        if (sideDropdown != null)
+            sideDropdown.onValueChanged.AddListener(_ => ApplyConditionsToCommand());
+
+        if (compareDropdown != null)
+            compareDropdown.onValueChanged.AddListener(_ => ApplyConditionsToCommand());
+
+        if (distanceInput != null)
+            distanceInput.onValueChanged.AddListener(_ => ApplyConditionsToCommand());
+
+        if (addConditionButton != null)
+            addConditionButton.onClick.AddListener(AddConditionRow);
+
+        BuildExtraRowsFromCommand();
+
+        initialized = true;
+
+        ApplyConditionsToCommand();
     }
 
-    private void SetupDropdowns()
+    private void SetupMainDropdowns()
     {
-        sideDropdown.ClearOptions();
-        sideDropdown.AddOptions(new System.Collections.Generic.List<string>
+        if (sideDropdown != null)
         {
-            "¬ÔÂÂ‰Ë",
-            "—Ô‡‚‡",
-            "—Á‡‰Ë",
-            "—ÎÂ‚‡"
-        });
+            sideDropdown.ClearOptions();
+            sideDropdown.AddOptions(new List<string>
+            {
+                "–°–ø–µ—Ä–µ–¥–∏",
+                "–°–ø—Ä–∞–≤–∞",
+                "–°–∑–∞–¥–∏",
+                "–°–ª–µ–≤–∞"
+            });
+        }
 
-        compareDropdown.ClearOptions();
-        compareDropdown.AddOptions(new System.Collections.Generic.List<string>
+        if (compareDropdown != null)
         {
-            "<",
-            "<=",
-            ">",
-            ">=",
-            "="
-        });
+            compareDropdown.ClearOptions();
+            compareDropdown.AddOptions(new List<string>
+            {
+                "<",
+                "<=",
+                ">",
+                ">=",
+                "="
+            });
+        }
     }
 
-    private void LoadFromCommand()
+    private void LoadMainFromCommand()
     {
         if (command == null) return;
 
-        sideDropdown.value = (int)command.lidarSide;
-        compareDropdown.value = (int)command.compare;
+        if (sideDropdown != null)
+            sideDropdown.SetValueWithoutNotify(SideToDropdown(command.lidarSide));
 
-        distanceInput.text = command.distanceMeters.ToString("0.##").Replace(",", ".");
+        if (compareDropdown != null)
+            compareDropdown.SetValueWithoutNotify(CompareToDropdown(command.compare));
+
+        if (distanceInput != null)
+            distanceInput.SetTextWithoutNotify(command.distanceMeters.ToString("0.##", CultureInfo.InvariantCulture));
     }
 
-    private void OnSideChanged(int value)
+    private void BuildExtraRowsFromCommand()
     {
-        if (command == null) return;
-        command.lidarSide = (LidarSide)value;
+        ClearRows();
+
+        if (command == null)
+            return;
+
+        if (command.conditions == null)
+            command.conditions = new List<BlockCommand.IfConditionData>();
+
+        for (int i = 0; i < command.conditions.Count; i++)
+            CreateRow(command.conditions[i]);
     }
 
-    private void OnCompareChanged(int value)
+    public void AddConditionRow()
     {
-        if (command == null) return;
-        command.compare = (CompareOperator)value;
-    }
-
-    private void OnDistanceChanged(string text)
-    {
-        if (command == null) return;
-
-        string fixedText = text.Replace(",", ".");
-
-        if (float.TryParse(
-                fixedText,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out float value))
+        BlockCommand.IfConditionData data = new BlockCommand.IfConditionData
         {
-            command.distanceMeters = value;
+            logic = LogicOperator.And,
+            side = LidarSide.Right,
+            compare = CompareOperator.LessOrEqual,
+            distanceMeters = 0.04f
+        };
+
+        CreateRow(data);
+        ApplyConditionsToCommand();
+    }
+
+    private void CreateRow(BlockCommand.IfConditionData data)
+    {
+        if (conditionRowPrefab == null || conditionsContent == null)
+        {
+            Debug.LogError("IF UI ERROR: conditionRowPrefab –∏–ª–∏ conditionsContent –Ω–µ –Ω–∞–∑–Ω–∞—á–µ–Ω—ã!");
+            return;
+        }
+
+        IfConditionRowUI row = Instantiate(conditionRowPrefab, conditionsContent);
+        rows.Add(row);
+
+        row.Init(this, false);
+        row.SetData(data);
+    }
+
+    public void DeleteConditionRow(IfConditionRowUI row)
+    {
+        if (row == null) return;
+
+        rows.Remove(row);
+        Destroy(row.gameObject);
+
+        ApplyConditionsToCommand();
+    }
+
+    public void ApplyConditionsToCommand()
+    {
+        if (command == null) return;
+
+        if (sideDropdown != null)
+            command.lidarSide = DropdownToSide(sideDropdown.value);
+
+        if (compareDropdown != null)
+            command.compare = DropdownToCompare(compareDropdown.value);
+
+        if (distanceInput != null)
+        {
+            string text = distanceInput.text.Replace(",", ".");
+
+            if (float.TryParse(
+                    text,
+                    NumberStyles.Float,
+                    CultureInfo.InvariantCulture,
+                    out float value))
+            {
+                command.distanceMeters = value;
+            }
+        }
+
+        if (command.conditions == null)
+            command.conditions = new List<BlockCommand.IfConditionData>();
+
+        command.conditions.Clear();
+
+        foreach (IfConditionRowUI row in rows)
+        {
+            if (row == null) continue;
+            command.conditions.Add(row.GetData());
+        }
+
+        if (initialized)
+        {
+            Debug.Log(
+                $"IF UI APPLY MAIN: side={command.lidarSide}, " +
+                $"compare={command.compare}, distance={command.distanceMeters}, " +
+                $"extraCount={command.conditions.Count}"
+            );
+        }
+    }
+
+    private void ClearRows()
+    {
+        foreach (IfConditionRowUI row in rows)
+        {
+            if (row != null)
+                Destroy(row.gameObject);
+        }
+
+        rows.Clear();
+    }
+
+    private int SideToDropdown(LidarSide side)
+    {
+        switch (side)
+        {
+            case LidarSide.Forward: return 0;
+            case LidarSide.Right: return 1;
+            case LidarSide.Backward: return 2;
+            case LidarSide.Left: return 3;
+            default: return 1;
+        }
+    }
+
+    private LidarSide DropdownToSide(int value)
+    {
+        switch (value)
+        {
+            case 0: return LidarSide.Forward;
+            case 1: return LidarSide.Right;
+            case 2: return LidarSide.Backward;
+            case 3: return LidarSide.Left;
+            default: return LidarSide.Right;
+        }
+    }
+
+    private int CompareToDropdown(CompareOperator compare)
+    {
+        switch (compare)
+        {
+            case CompareOperator.Less: return 0;
+            case CompareOperator.LessOrEqual: return 1;
+            case CompareOperator.Greater: return 2;
+            case CompareOperator.GreaterOrEqual: return 3;
+            case CompareOperator.Equal: return 4;
+            default: return 1;
+        }
+    }
+
+    private CompareOperator DropdownToCompare(int value)
+    {
+        switch (value)
+        {
+            case 0: return CompareOperator.Less;
+            case 1: return CompareOperator.LessOrEqual;
+            case 2: return CompareOperator.Greater;
+            case 3: return CompareOperator.GreaterOrEqual;
+            case 4: return CompareOperator.Equal;
+            default: return CompareOperator.LessOrEqual;
         }
     }
 }

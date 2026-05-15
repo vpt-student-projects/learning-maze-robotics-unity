@@ -4,29 +4,32 @@ using UnityEngine;
 public class BlockChainManager : MonoBehaviour
 {
     [Header("Workspace")]
-    public RectTransform workspaceRoot; // WorkspaceContent (куда складываются блоки)
+    public RectTransform workspaceRoot;
 
     [Header("Snap")]
-    public float snapDistance = 40f;    // насколько близко нужно отпустить, чтобы "прилипло"
-    public float verticalGap = 8f;      // зазор между блоками в цепочке
+    public float snapDistance = 40f;
+    public float verticalGap = 8f;
 
-    private readonly List<BlockCommand> blocks = new();
+    private readonly List<BlockCommand> blocks = new List<BlockCommand>();
 
     public int DebugCount => blocks.Count;
 
-    // -------- Registry --------
-
-    public void RegisterBlock(BlockCommand b)
+    public void RegisterBlock(BlockCommand block)
     {
-        if (b == null) return;
-        if (!blocks.Contains(b)) blocks.Add(b);
+        if (block == null) return;
+
+        if (!blocks.Contains(block))
+            blocks.Add(block);
     }
 
-    public void UnregisterBlock(BlockCommand b)
+    public void UnregisterBlock(BlockCommand block)
     {
-        if (b == null) return;
-        blocks.Remove(b);
-        Detach(b);
+        if (block == null) return;
+
+        Detach(block);
+        blocks.Remove(block);
+
+        RefreshIfElseBranches();
     }
 
     public void ClearAll()
@@ -34,67 +37,92 @@ public class BlockChainManager : MonoBehaviour
         blocks.Clear();
     }
 
-    /// <summary>
-    /// На случай, если регистрация слетает — пересобираем список blocks из детей workspaceContent.
-    /// Связи prev/next не создаём заново, но хотя бы blocks будет не пустой.
-    /// </summary>
-    public void RebuildFromWorkspace(Transform workspaceContent)
+    public void RebuildFromWorkspace(RectTransform root)
     {
+        workspaceRoot = root;
         blocks.Clear();
-        if (workspaceContent == null) return;
 
-        var cmds = workspaceContent.GetComponentsInChildren<BlockCommand>(true);
-        foreach (var c in cmds)
+        if (workspaceRoot == null)
         {
-            if (c == null) continue;
-            // prev/next НЕ трогаем тут намеренно — цепочка могла уже быть построена снапом
-            if (!blocks.Contains(c)) blocks.Add(c);
+            Debug.LogWarning("CHAIN: workspaceRoot is null");
+            return;
         }
+
+        BlockCommand previous = null;
+
+        for (int i = 0; i < workspaceRoot.childCount; i++)
+        {
+            Transform child = workspaceRoot.GetChild(i);
+
+            BlockCommand cmd = child.GetComponent<BlockCommand>();
+            if (cmd == null) continue;
+
+            cmd.prev = null;
+            cmd.next = null;
+
+            blocks.Add(cmd);
+
+            if (previous != null)
+            {
+                previous.next = cmd;
+                cmd.prev = previous;
+            }
+
+            previous = cmd;
+        }
+
+        Debug.Log($"CHAIN REBUILD MAIN ONLY: count={blocks.Count}");
     }
 
-    // -------- Links --------
-
-    public void Detach(BlockCommand b)
+    public void Detach(BlockCommand block)
     {
-        if (b == null) return;
+        if (block == null) return;
 
-        if (b.prev != null) b.prev.next = b.next;
-        if (b.next != null) b.next.prev = b.prev;
+        if (block.prev != null)
+            block.prev.next = block.next;
 
-        b.prev = null;
-        b.next = null;
+        if (block.next != null)
+            block.next.prev = block.prev;
+
+        block.prev = null;
+        block.next = null;
     }
-
-    // -------- Snapping --------
 
     public void TrySnap(BlockCommand moving)
     {
         if (moving == null) return;
 
-        // перед попыткой снапа — выкидываем из цепи
         Detach(moving);
 
-        var movingSnap = moving.GetComponent<BlockSnapPoints>();
-        var movingRT = moving.GetComponent<RectTransform>();
-        if (movingSnap == null || movingRT == null) return;
+        BlockSnapPoints movingSnap = moving.GetComponent<BlockSnapPoints>();
+        RectTransform movingRT = moving.GetComponent<RectTransform>();
+
+        if (movingSnap == null || movingRT == null)
+        {
+            RefreshIfElseBranches();
+            return;
+        }
+
+        Transform movingParent = moving.transform.parent;
 
         float bestDist = float.MaxValue;
         BlockCommand bestTarget = null;
-
-        // attachAsNext:
-        // true  => target.next = moving (движимый встанет НИЖЕ target)
-        // false => moving.next = target (движимый встанет ВЫШЕ target)
         bool attachAsNext = true;
 
-        foreach (var other in blocks)
+        foreach (BlockCommand other in blocks)
         {
-            if (other == null || other == moving) continue;
+            if (other == null || other == moving)
+                continue;
 
-            var otherSnap = other.GetComponent<BlockSnapPoints>();
-            if (otherSnap == null) continue;
+            if (other.transform.parent != movingParent)
+                continue;
 
-            // other.bottom -> moving.top (moving ниже other)
+            BlockSnapPoints otherSnap = other.GetComponent<BlockSnapPoints>();
+            if (otherSnap == null)
+                continue;
+
             float d1 = Vector3.Distance(otherSnap.BottomWorld, movingSnap.TopWorld);
+
             if (d1 < bestDist)
             {
                 bestDist = d1;
@@ -102,8 +130,8 @@ public class BlockChainManager : MonoBehaviour
                 attachAsNext = true;
             }
 
-            // moving.bottom -> other.top (moving выше other)
             float d2 = Vector3.Distance(movingSnap.BottomWorld, otherSnap.TopWorld);
+
             if (d2 < bestDist)
             {
                 bestDist = d2;
@@ -112,19 +140,20 @@ public class BlockChainManager : MonoBehaviour
             }
         }
 
-        if (bestTarget == null) return;
-        if (bestDist > snapDistance) return;
+        if (bestTarget == null || bestDist > snapDistance)
+        {
+            RefreshIfElseBranches();
+            return;
+        }
 
-        // Линкуем (с учётом вставки в середину)
         if (attachAsNext)
         {
-            // bestTarget -> moving -> oldNext
-            var oldNext = bestTarget.next;
+            BlockCommand oldNext = bestTarget.next;
 
             bestTarget.next = moving;
             moving.prev = bestTarget;
 
-            if (oldNext != null)
+            if (oldNext != null && oldNext.transform.parent == movingParent)
             {
                 moving.next = oldNext;
                 oldNext.prev = moving;
@@ -132,20 +161,19 @@ public class BlockChainManager : MonoBehaviour
         }
         else
         {
-            // oldPrev -> moving -> bestTarget
-            var oldPrev = bestTarget.prev;
+            BlockCommand oldPrev = bestTarget.prev;
 
             bestTarget.prev = moving;
             moving.next = bestTarget;
 
-            if (oldPrev != null)
+            if (oldPrev != null && oldPrev.transform.parent == movingParent)
             {
                 moving.prev = oldPrev;
                 oldPrev.next = moving;
             }
         }
 
-        // Выравниваем позиции по цепи
+        LayoutFromChainRoot(moving);
         RefreshIfElseBranches();
     }
 
@@ -153,27 +181,32 @@ public class BlockChainManager : MonoBehaviour
     {
         if (anyInChain == null) return;
 
-        // найти корень (самый верхний)
         BlockCommand root = anyInChain;
-        while (root.prev != null) root = root.prev;
 
-        // идём вниз и ставим блоки ровно один под другим
-        var cur = root;
+        while (root.prev != null)
+            root = root.prev;
+
+        BlockCommand cur = root;
+
         while (cur != null)
         {
-            var curRT = cur.GetComponent<RectTransform>();
-            var curSnap = cur.GetComponent<BlockSnapPoints>();
-            if (curRT == null || curSnap == null) break;
+            RectTransform curRT = cur.GetComponent<RectTransform>();
+            BlockSnapPoints curSnap = cur.GetComponent<BlockSnapPoints>();
+
+            if (curRT == null || curSnap == null)
+                break;
 
             if (cur.next != null)
             {
-                var nextRT = cur.next.GetComponent<RectTransform>();
-                var nextSnap = cur.next.GetComponent<BlockSnapPoints>();
-                if (nextRT == null || nextSnap == null) break;
+                RectTransform nextRT = cur.next.GetComponent<RectTransform>();
+                BlockSnapPoints nextSnap = cur.next.GetComponent<BlockSnapPoints>();
 
-                // хотим: next.top == cur.bottom - gap
+                if (nextRT == null || nextSnap == null)
+                    break;
+
                 Vector3 desiredTop = curSnap.BottomWorld + Vector3.down * verticalGap;
                 Vector3 delta = desiredTop - nextSnap.TopWorld;
+
                 nextRT.position += delta;
             }
 
@@ -181,91 +214,43 @@ public class BlockChainManager : MonoBehaviour
         }
     }
 
-    // -------- Start detection --------
-
-    public BlockCommand FindProgramStart()
-    {
-        // 1) если есть Start блок — берём его цепочку
-        foreach (var b0 in blocks)
-        {
-            if (b0 == null) continue;
-            if (b0.type != BlockType.Start) continue;
-
-            var b = b0; // копия переменной, чтобы не ломать foreach
-            while (b.prev != null) b = b.prev;
-            return b;
-        }
-
-        // 2) иначе берём самый верхний по Y (для случая без Start)
-        BlockCommand top = null;
-        float bestY = float.NegativeInfinity;
-
-        foreach (var b in blocks)
-        {
-            if (b == null) continue;
-            var rt = b.GetComponent<RectTransform>();
-            if (rt == null) continue;
-
-            if (rt.position.y > bestY)
-            {
-                bestY = rt.position.y;
-                top = b;
-            }
-        }
-
-        if (top == null) return null;
-        while (top.prev != null) top = top.prev;
-        return top;
-    }
-
-    //public void RefreshIfElseBranches()
-    //{
-    //    if (workspaceRoot == null) return;
-
-    //    var ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
-
-    //    foreach (var ifUI in ifBlocks)
-    //    {
-    //        if (ifUI == null || ifUI.command == null) continue;
-
-    //        ifUI.command.trueBranchStart = FindBranchStart(ifUI.ifContent);
-    //        ifUI.command.falseBranchStart = FindBranchStart(ifUI.elseContent);
-
-    //        Debug.Log(
-    //            $"IF UI REFRESH: {ifUI.command.name} | " +
-    //            $"IF={(ifUI.command.trueBranchStart != null ? ifUI.command.trueBranchStart.name : "empty")} | " +
-    //            $"ELSE={(ifUI.command.falseBranchStart != null ? ifUI.command.falseBranchStart.name : "empty")}"
-    //        );
-    //    }
-    //}
     public void RefreshIfElseBranches()
     {
         if (workspaceRoot == null) return;
 
-        var ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+        IfElseBlockUI[] ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
 
-        foreach (var ifUI in ifBlocks)
+        foreach (IfElseBlockUI ifUI in ifBlocks)
         {
-            if (ifUI == null || ifUI.command == null) continue;
+            if (ifUI == null || ifUI.command == null)
+                continue;
 
             ifUI.command.trueBranchStart = RebuildBranchChain(ifUI.ifContent);
             ifUI.command.falseBranchStart = RebuildBranchChain(ifUI.elseContent);
+
+            Debug.Log(
+                $"IF REFRESH: {ifUI.command.name} | TRUE=" +
+                $"{(ifUI.command.trueBranchStart != null ? ifUI.command.trueBranchStart.name : "empty")} | ELSE=" +
+                $"{(ifUI.command.falseBranchStart != null ? ifUI.command.falseBranchStart.name : "empty")}"
+            );
         }
     }
 
     private BlockCommand RebuildBranchChain(RectTransform content)
     {
-        if (content == null) return null;
+        if (content == null)
+            return null;
 
         BlockCommand first = null;
-        BlockCommand prev = null;
+        BlockCommand previous = null;
 
         for (int i = 0; i < content.childCount; i++)
         {
             Transform child = content.GetChild(i);
-            BlockCommand cmd = child.GetComponent<BlockCommand>();
 
-            if (cmd == null) continue;
+            BlockCommand cmd = child.GetComponent<BlockCommand>();
+            if (cmd == null)
+                continue;
 
             cmd.prev = null;
             cmd.next = null;
@@ -273,48 +258,32 @@ public class BlockChainManager : MonoBehaviour
             if (first == null)
                 first = cmd;
 
-            if (prev != null)
+            if (previous != null)
             {
-                prev.next = cmd;
-                cmd.prev = prev;
+                previous.next = cmd;
+                cmd.prev = previous;
             }
 
-            prev = cmd;
+            previous = cmd;
         }
 
         return first;
     }
-    private BlockCommand FindBranchStart(RectTransform container)
+
+    public BlockCommand FindProgramStart()
     {
-        if (container == null) return null;
-
-        BlockCommand result = null;
-        float bestY = float.NegativeInfinity;
-
-        var commands = container.GetComponentsInChildren<BlockCommand>(true);
-
-        foreach (var cmd in commands)
+        foreach (BlockCommand block in blocks)
         {
-            if (cmd == null) continue;
-            if (cmd.type == BlockType.IfElse) continue;
-
-            bool prevInsideSameContainer =
-                cmd.prev != null &&
-                cmd.prev.transform.IsChildOf(container);
-
-            if (prevInsideSameContainer)
-                continue;
-
-            var rt = cmd.GetComponent<RectTransform>();
-            if (rt == null) continue;
-
-            if (rt.position.y > bestY)
-            {
-                bestY = rt.position.y;
-                result = cmd;
-            }
+            if (block != null && block.type == BlockType.Start)
+                return block;
         }
 
-        return result;
+        foreach (BlockCommand block in blocks)
+        {
+            if (block != null && block.prev == null)
+                return block;
+        }
+
+        return null;
     }
 }

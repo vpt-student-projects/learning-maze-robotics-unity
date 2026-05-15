@@ -9,6 +9,7 @@ public enum BlockType
     TurnRight,
     IfElse
 }
+
 public enum LidarSide
 {
     Forward,
@@ -19,11 +20,17 @@ public enum LidarSide
 
 public enum CompareOperator
 {
-    LessOrEqual,
-    GreaterOrEqual,
     Less,
+    LessOrEqual,
     Greater,
+    GreaterOrEqual,
     Equal
+}
+
+public enum LogicOperator
+{
+    And,
+    Or
 }
 
 [CreateAssetMenu(menuName = "Blocks/Block Definition", fileName = "BlockDefinition")]

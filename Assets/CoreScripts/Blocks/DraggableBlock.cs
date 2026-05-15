@@ -10,7 +10,7 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
     [Header("Scene refs")]
     public Canvas rootCanvas;
-    public RectTransform dragLayer;            // DragLayer на Canvas (обязательно!)
+    public RectTransform dragLayer;
     public BlockChainManager chainManager;
 
     [Header("Delete UI")]
@@ -18,33 +18,35 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
     private CanvasGroup canvasGroup;
 
-    // palette drag clone
     private GameObject cloneGO;
     private RectTransform cloneRT;
     private CanvasGroup cloneCG;
 
-    // normal drag
     private Transform originalParent;
     private Vector2 originalAnchoredPos;
-    private Vector2 dragOffset;
     private RectTransform myRT;
 
     private void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
-        if (canvasGroup == null) canvasGroup = gameObject.AddComponent<CanvasGroup>();
+
+        if (canvasGroup == null)
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
 
         myRT = GetComponent<RectTransform>();
 
-        if (rootCanvas == null) rootCanvas = GetComponentInParent<Canvas>();
+        if (rootCanvas == null)
+            rootCanvas = GetComponentInParent<Canvas>();
+
         if (dragLayer == null && rootCanvas != null)
         {
-            var t = rootCanvas.transform.Find("DragLayer");
-            if (t != null) dragLayer = t as RectTransform;
+            Transform t = rootCanvas.transform.Find("DragLayer");
+
+            if (t != null)
+                dragLayer = t as RectTransform;
         }
 
-        if (isPaletteSample) SetDeleteVisible(false);
-        else SetDeleteVisible(true);
+        SetDeleteVisible(!isPaletteSample);
     }
 
     private void EnsureRefs()
@@ -57,21 +59,25 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
         if (dragLayer == null && rootCanvas != null)
         {
-            var t = rootCanvas.transform.Find("DragLayer");
-            if (t != null) dragLayer = t as RectTransform;
+            Transform t = rootCanvas.transform.Find("DragLayer");
+
+            if (t != null)
+                dragLayer = t as RectTransform;
         }
     }
 
     private void SetDeleteVisible(bool visible)
     {
-        if (deleteButton != null) deleteButton.SetActive(visible);
+        if (deleteButton != null)
+            deleteButton.SetActive(visible);
     }
 
     public void DeleteSelf()
     {
         EnsureRefs();
 
-        var cmd = GetComponent<BlockCommand>();
+        BlockCommand cmd = GetComponent<BlockCommand>();
+
         if (cmd != null && chainManager != null)
             chainManager.UnregisterBlock(cmd);
 
@@ -81,17 +87,20 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     public void OnBeginDrag(PointerEventData eventData)
     {
         EnsureRefs();
-        if (rootCanvas == null || dragLayer == null) return;
+
+        if (rootCanvas == null || dragLayer == null)
+            return;
 
         if (isPaletteSample)
         {
-            if (paletteItem == null || paletteItem.blockUIPrefab == null) return;
+            if (paletteItem == null || paletteItem.blockUIPrefab == null)
+                return;
 
-            // создаём клон сразу в DragLayer
             cloneGO = Instantiate(paletteItem.blockUIPrefab, dragLayer);
             cloneGO.transform.SetAsLastSibling();
 
-            var cloneDrag = cloneGO.GetComponent<DraggableBlock>();
+            DraggableBlock cloneDrag = cloneGO.GetComponent<DraggableBlock>();
+
             if (cloneDrag != null)
             {
                 cloneDrag.isPaletteSample = false;
@@ -104,7 +113,9 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
             cloneRT = cloneGO.GetComponent<RectTransform>();
             cloneCG = cloneGO.GetComponent<CanvasGroup>();
-            if (cloneCG == null) cloneCG = cloneGO.AddComponent<CanvasGroup>();
+
+            if (cloneCG == null)
+                cloneCG = cloneGO.AddComponent<CanvasGroup>();
 
             cloneCG.blocksRaycasts = false;
             cloneCG.alpha = 0.85f;
@@ -115,29 +126,16 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             return;
         }
 
-        // обычный блок
-        if (myRT == null) myRT = GetComponent<RectTransform>();
+        if (myRT == null)
+            myRT = GetComponent<RectTransform>();
 
-        // отцепить от цепочки перед переносом
-        var meCmd = GetComponent<BlockCommand>();
+        BlockCommand meCmd = GetComponent<BlockCommand>();
+
         if (meCmd != null && chainManager != null)
             chainManager.Detach(meCmd);
 
         originalParent = transform.parent;
         originalAnchoredPos = myRT.anchoredPosition;
-
-        // переносим в DragLayer (а не в Canvas и не куда попало)
-        Vector2 pointerLocalBefore;
-        RectTransform parentBefore = myRT.parent as RectTransform;
-
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            parentBefore,
-            eventData.position,
-            eventData.pressEventCamera,
-            out pointerLocalBefore
-        );
-
-        dragOffset = myRT.anchoredPosition - pointerLocalBefore;
 
         transform.SetParent(dragLayer, true);
         transform.SetAsLastSibling();
@@ -150,28 +148,14 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     {
         if (isPaletteSample)
         {
-            if (cloneRT != null) SetRectToPointerWithOffset(cloneRT, eventData);
+            if (cloneRT != null)
+                SetRectToPointer(cloneRT, eventData);
+
             return;
         }
 
-        if (myRT != null) SetRectToPointer(myRT, eventData);
-    }
-
-    private void SetRectToPointerWithOffset(RectTransform target, PointerEventData eventData)
-    {
-        if (target == null || rootCanvas == null) return;
-
-        RectTransform parent = target.parent as RectTransform;
-        if (parent == null) return;
-
-        RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            parent,
-            eventData.position,
-            eventData.pressEventCamera,
-            out var localPoint
-        );
-
-        target.anchoredPosition = localPoint + dragOffset;
+        if (myRT != null)
+            SetRectToPointer(myRT, eventData);
     }
 
     public void OnEndDrag(PointerEventData eventData)
@@ -181,122 +165,159 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         if (isPaletteSample)
         {
             canvasGroup.blocksRaycasts = true;
-            if (cloneGO == null) return;
 
-            var zone = FindDropZoneUnderPointer(eventData);
+            if (cloneGO == null)
+                return;
 
-            if (zone != null)
-            {
-                cloneCG.blocksRaycasts = true;
-                cloneCG.alpha = 1f;
+            DropZone zone = FindDropZoneUnderPointer(eventData);
 
-                zone.Accept(cloneGO.transform);
-
-                var newCmd = cloneGO.GetComponent<BlockCommand>();
-
-                if (newCmd != null && chainManager != null)
-                {
-                    chainManager.RegisterBlock(newCmd);
-
-                    if (zone.zoneType == DropZoneType.Workspace)
-                    {
-                        SetRectToPointer(cloneRT, eventData, zone.workspaceContent as RectTransform);
-                        chainManager.TrySnap(newCmd);
-                    }
-                    else
-                    {
-                        ResetBlockForBranch(cloneRT);
-                        chainManager.RefreshIfElseBranches();
-                    }
-                }
-            }
-            else
+            if (zone == null)
             {
                 Destroy(cloneGO);
+                ClearCloneRefs();
+                return;
             }
 
-            cloneGO = null;
-            cloneRT = null;
-            cloneCG = null;
+            cloneCG.blocksRaycasts = true;
+            cloneCG.alpha = 1f;
+
+            zone.Accept(cloneGO.transform);
+
+            BlockCommand cmd = cloneGO.GetComponent<BlockCommand>();
+
+            if (cmd != null && chainManager != null)
+            {
+                chainManager.RegisterBlock(cmd);
+
+                if (zone.zoneType == DropZoneType.Workspace)
+                {
+                    RectTransform workspaceRT = zone.workspaceContent as RectTransform;
+
+                    if (workspaceRT != null)
+                        SetRectToPointer(cloneRT, eventData, workspaceRT);
+
+                    chainManager.TrySnap(cmd);
+                }
+                else
+                {
+                    PrepareBlockForBranch(cloneRT);
+                    chainManager.RefreshIfElseBranches();
+                }
+            }
+
+            ClearCloneRefs();
             return;
         }
 
         canvasGroup.blocksRaycasts = true;
         canvasGroup.alpha = 1f;
 
-        var dropZone = FindDropZoneUnderPointer(eventData);
+        DropZone dropZone = FindDropZoneUnderPointer(eventData);
 
-        if (dropZone != null)
-        {
-            dropZone.Accept(transform);
-
-            var draggedCmd = GetComponent<BlockCommand>();
-
-            if (draggedCmd != null && chainManager != null)
-            {
-                chainManager.RegisterBlock(draggedCmd);
-
-                if (dropZone.zoneType == DropZoneType.Workspace)
-                {
-                    SetRectToPointer(myRT, eventData, dropZone.workspaceContent as RectTransform);
-                    chainManager.TrySnap(draggedCmd);
-                }
-                else
-                {
-                    ResetBlockForBranch(myRT);
-                    chainManager.RefreshIfElseBranches();
-                }
-            }
-        }
-        else
+        if (dropZone == null)
         {
             if (originalParent != null)
             {
                 transform.SetParent(originalParent, true);
-                if (myRT != null) myRT.anchoredPosition = originalAnchoredPos;
+
+                if (myRT != null)
+                    myRT.anchoredPosition = originalAnchoredPos;
+            }
+
+            return;
+        }
+
+        dropZone.Accept(transform);
+
+        BlockCommand draggedCmd = GetComponent<BlockCommand>();
+
+        if (draggedCmd != null && chainManager != null)
+        {
+            chainManager.RegisterBlock(draggedCmd);
+
+            if (dropZone.zoneType == DropZoneType.Workspace)
+            {
+                RectTransform workspaceRT = dropZone.workspaceContent as RectTransform;
+
+                if (workspaceRT != null)
+                    SetRectToPointer(myRT, eventData, workspaceRT);
+
+                chainManager.TrySnap(draggedCmd);
+            }
+            else
+            {
+                PrepareBlockForBranch(myRT);
+                chainManager.RefreshIfElseBranches();
             }
         }
     }
 
+    private void ClearCloneRefs()
+    {
+        cloneGO = null;
+        cloneRT = null;
+        cloneCG = null;
+    }
+
+    private void PrepareBlockForBranch(RectTransform rt)
+    {
+        if (rt == null) return;
+
+        rt.localScale = Vector3.one;
+        rt.localRotation = Quaternion.identity;
+    }
+
     private void SetRectToPointer(RectTransform target, PointerEventData eventData, RectTransform relativeTo = null)
     {
-        if (target == null || rootCanvas == null) return;
+        if (target == null || rootCanvas == null)
+            return;
 
-        var reference = relativeTo != null ? relativeTo : (RectTransform)rootCanvas.transform;
+        RectTransform reference = relativeTo != null
+            ? relativeTo
+            : rootCanvas.transform as RectTransform;
+
+        if (reference == null)
+            return;
 
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             reference,
             eventData.position,
             eventData.pressEventCamera,
-            out var localPoint
+            out Vector2 localPoint
         );
 
-        // если целевой RectTransform НЕ под тем же parent'ом, то ставим позицию через world
         if (target.parent == reference)
         {
             target.anchoredPosition = localPoint;
         }
         else
         {
-            // перевод localPoint reference -> world -> target parent local
             Vector3 world = reference.TransformPoint(localPoint);
-            Vector3 parentLocal = ((RectTransform)target.parent).InverseTransformPoint(world);
-            target.anchoredPosition = parentLocal;
+
+            RectTransform parentRT = target.parent as RectTransform;
+
+            if (parentRT != null)
+            {
+                Vector3 parentLocal = parentRT.InverseTransformPoint(world);
+                target.anchoredPosition = parentLocal;
+            }
         }
     }
 
     private DropZone FindDropZoneUnderPointer(PointerEventData eventData)
     {
-        var results = new List<RaycastResult>();
+        List<RaycastResult> results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
 
         DropZone bestZone = null;
         int bestPriority = -1;
 
-        foreach (var r in results)
+        foreach (RaycastResult result in results)
         {
-            var zone = r.gameObject.GetComponentInParent<DropZone>();
-            if (zone == null) continue;
+            DropZone zone = result.gameObject.GetComponentInParent<DropZone>();
+
+            if (zone == null)
+                continue;
 
             int priority = 0;
 
@@ -314,18 +335,5 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         }
 
         return bestZone;
-    }
-
-    private void ResetBlockForBranch(RectTransform rt)
-    {
-        if (rt == null) return;
-
-        rt.anchorMin = new Vector2(0.5f, 0.5f);
-        rt.anchorMax = new Vector2(0.5f, 0.5f);
-        rt.pivot = new Vector2(0.5f, 0.5f);
-
-        rt.localScale = Vector3.one;
-        rt.localRotation = Quaternion.identity;
-        rt.anchoredPosition = Vector2.zero;
     }
 }

@@ -23,23 +23,22 @@ public class DropZone : MonoBehaviour
 
     public void Accept(Transform blockTransform)
     {
-        blockTransform.SetParent(workspaceContent, false);
+        if (blockTransform == null) return;
 
-        var rt = blockTransform.GetComponent<RectTransform>();
+        blockTransform.SetParent(workspaceContent, false);
+        blockTransform.SetAsLastSibling();
+
+        RectTransform rt = blockTransform.GetComponent<RectTransform>();
+
         if (rt != null)
         {
             rt.localScale = Vector3.one;
             rt.localRotation = Quaternion.identity;
-            rt.anchoredPosition = Vector2.zero;
         }
 
-        blockTransform.SetAsLastSibling();
+        BlockChainManager chain = FindAnyObjectByType<BlockChainManager>();
 
-        var chain = FindAnyObjectByType<BlockChainManager>();
         if (chain != null)
-        {
-            chain.RebuildFromWorkspace(chain.workspaceRoot);
             chain.RefreshIfElseBranches();
-        }
     }
 }
