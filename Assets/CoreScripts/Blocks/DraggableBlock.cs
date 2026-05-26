@@ -16,6 +16,9 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     [Header("Delete UI")]
     public GameObject deleteButton;
 
+    [Header("Drag View")]
+    public bool centerPaletteCloneUnderCursor = true;
+
     private CanvasGroup canvasGroup;
 
     private GameObject cloneGO;
@@ -25,6 +28,9 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     private Transform originalParent;
     private Vector2 originalAnchoredPos;
     private RectTransform myRT;
+
+    private Vector2 dragPointerOffset;
+    private bool hasDragPointerOffset;
 
     private void Awake()
     {
@@ -87,20 +93,37 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
     {
         EnsureRefs();
 
-        LoopBlockUI parentLoop = GetComponentInParent<LoopBlockUI>();
+        if (isPaletteSample)
+            return;
 
         BlockCommand cmd = GetComponent<BlockCommand>();
+        LoopBlockUI parentLoop = GetComponentInParent<LoopBlockUI>();
+        IfElseBlockUI parentIfElse = GetComponentInParent<IfElseBlockUI>();
 
-        if (cmd != null && chainManager != null)
+        gameObject.SetActive(false);
+
+        if (chainManager != null && cmd != null)
             chainManager.UnregisterBlock(cmd);
 
-        Destroy(gameObject);
+        if (parentLoop != null)
+            parentLoop.RefreshSize();
+
+        if (parentIfElse != null)
+            parentIfElse.RefreshSize();
 
         if (chainManager != null)
             chainManager.RefreshAllContainers();
 
+        Destroy(gameObject);
+
         if (parentLoop != null)
             parentLoop.RefreshSize();
+
+        if (parentIfElse != null)
+            parentIfElse.RefreshSize();
+
+        if (chainManager != null)
+            chainManager.RefreshAllContainers();
     }
 
     public void OnBeginDrag(PointerEventData eventData)
@@ -109,6 +132,9 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
         if (rootCanvas == null || dragLayer == null)
             return;
+
+        hasDragPointerOffset = false;
+        dragPointerOffset = Vector2.zero;
 
         if (isPaletteSample)
         {
@@ -139,19 +165,14 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             cloneCG.blocksRaycasts = false;
             cloneCG.alpha = 0.85f;
 
-            SetRectToPointer(cloneRT, eventData);
+            PrepareDraggedClone(cloneRT);
+
+            if (centerPaletteCloneUnderCursor)
+                SetRectCenterToPointer(cloneRT, eventData);
+            else
+                SetRectToPointer(cloneRT, eventData);
 
             canvasGroup.blocksRaycasts = false;
-
-            /*
-             * ВАЖНО:
-             * Здесь больше НЕ вызываем chainManager.RefreshAllContainers().
-             *
-             * Когда мы только берём блок из палитры, workspace трогать нельзя.
-             * Иначе BlockChainManager может пересчитать цепочку в момент,
-             * когда Canvas/Layout ещё не стабилен, увидеть цикл пустым
-             * и вернуть блок после цикла к старому BottomSnap.
-             */
 
             return;
         }
@@ -167,6 +188,8 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         originalParent = transform.parent;
         originalAnchoredPos = myRT.anchoredPosition;
 
+        CalculatePointerOffset(myRT, eventData);
+
         transform.SetParent(dragLayer, true);
         transform.SetAsLastSibling();
 
@@ -179,18 +202,31 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         if (isPaletteSample)
         {
             if (cloneRT != null)
-                SetRectToPointer(cloneRT, eventData);
+            {
+                if (centerPaletteCloneUnderCursor)
+                    SetRectCenterToPointer(cloneRT, eventData);
+                else
+                    SetRectToPointer(cloneRT, eventData);
+            }
 
             return;
         }
 
         if (myRT != null)
-            SetRectToPointer(myRT, eventData);
+        {
+            if (hasDragPointerOffset)
+                SetRectToPointerWithOffset(myRT, eventData, dragPointerOffset);
+            else
+                SetRectToPointer(myRT, eventData);
+        }
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
         EnsureRefs();
+
+        hasDragPointerOffset = false;
+        dragPointerOffset = Vector2.zero;
 
         if (isPaletteSample)
         {
@@ -203,15 +239,6 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
 
             if (zone == null)
             {
-                /*
-                 * ВАЖНО:
-                 * Если взяли блок из палитры и передумали ставить,
-                 * просто удаляем временный clone.
-                 *
-                 * НЕ вызываем RefreshAllContainers().
-                 * Существующий алгоритм не должен пересчитываться,
-                 * потому что фактически пользователь ничего не добавил.
-                 */
                 Destroy(cloneGO);
                 ClearCloneRefs();
                 return;
@@ -236,7 +263,7 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
                     RectTransform workspaceRT = zone.workspaceContent as RectTransform;
 
                     if (workspaceRT != null)
-                        SetRectToPointer(cloneRT, eventData, workspaceRT);
+                        SetRectCenterToPointer(cloneRT, eventData, workspaceRT);
 
                     chainManager.TrySnap(cmd);
                 }
@@ -266,10 +293,6 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
                     myRT.anchoredPosition = originalAnchoredPos;
             }
 
-            /*
-             * Для уже существующего блока refresh нужен,
-             * потому что он мог быть Detach() в OnBeginDrag.
-             */
             if (chainManager != null)
                 chainManager.RefreshAllContainers();
 
@@ -303,6 +326,15 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         FinalizeBranchDrop(dropZone);
     }
 
+    private void PrepareDraggedClone(RectTransform rt)
+    {
+        if (rt == null)
+            return;
+
+        rt.localScale = Vector3.one;
+        rt.localRotation = Quaternion.identity;
+    }
+
     private void FinalizeBranchDrop(DropZone zone)
     {
         Canvas.ForceUpdateCanvases();
@@ -316,6 +348,12 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             Canvas.ForceUpdateCanvases();
         }
 
+        if (zone != null && zone.ownerIfElse != null)
+        {
+            zone.ownerIfElse.RefreshSize();
+            Canvas.ForceUpdateCanvases();
+        }
+
         if (chainManager != null)
         {
             chainManager.RebuildAllChainsByHierarchy();
@@ -325,6 +363,12 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         if (zone != null && zone.ownerLoop != null)
         {
             zone.ownerLoop.RefreshSize();
+            Canvas.ForceUpdateCanvases();
+        }
+
+        if (zone != null && zone.ownerIfElse != null)
+        {
+            zone.ownerIfElse.RefreshSize();
             Canvas.ForceUpdateCanvases();
         }
 
@@ -381,6 +425,33 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             zone.workspaceContent = zone.content;
             return;
         }
+
+        if (zone.ownerIfElse != null)
+        {
+            if (zone.zoneType == DropZoneType.IfBranch ||
+                zone.zoneType == DropZoneType.If ||
+                zone.zoneType == DropZoneType.IfContent ||
+                zone.zoneType == DropZoneType.IfTrue)
+            {
+                if (zone.ownerIfElse.ifContent != null)
+                    zone.content = zone.ownerIfElse.ifContent;
+
+                zone.workspaceContent = zone.content;
+                return;
+            }
+
+            if (zone.zoneType == DropZoneType.ElseBranch ||
+                zone.zoneType == DropZoneType.Else ||
+                zone.zoneType == DropZoneType.ElseContent ||
+                zone.zoneType == DropZoneType.IfFalse)
+            {
+                if (zone.ownerIfElse.elseContent != null)
+                    zone.content = zone.ownerIfElse.elseContent;
+
+                zone.workspaceContent = zone.content;
+                return;
+            }
+        }
     }
 
     private void ClearCloneRefs()
@@ -388,6 +459,31 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         cloneGO = null;
         cloneRT = null;
         cloneCG = null;
+    }
+
+    private void CalculatePointerOffset(RectTransform target, PointerEventData eventData)
+    {
+        if (target == null || rootCanvas == null)
+            return;
+
+        RectTransform reference = rootCanvas.transform as RectTransform;
+
+        if (reference == null)
+            return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            reference,
+            eventData.position,
+            GetEventCamera(eventData),
+            out Vector2 pointerLocal
+        );
+
+        Vector3 targetWorld = target.position;
+        Vector3 targetLocal3 = reference.InverseTransformPoint(targetWorld);
+        Vector2 targetLocal = new Vector2(targetLocal3.x, targetLocal3.y);
+
+        dragPointerOffset = targetLocal - pointerLocal;
+        hasDragPointerOffset = true;
     }
 
     private void SetRectToPointer(RectTransform target, PointerEventData eventData, RectTransform relativeTo = null)
@@ -409,6 +505,68 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             out Vector2 localPoint
         );
 
+        SetRectPivotToLocalPoint(target, reference, localPoint);
+    }
+
+    private void SetRectToPointerWithOffset(RectTransform target, PointerEventData eventData, Vector2 offset, RectTransform relativeTo = null)
+    {
+        if (target == null || rootCanvas == null)
+            return;
+
+        RectTransform reference = relativeTo != null
+            ? relativeTo
+            : rootCanvas.transform as RectTransform;
+
+        if (reference == null)
+            return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            reference,
+            eventData.position,
+            GetEventCamera(eventData),
+            out Vector2 localPoint
+        );
+
+        SetRectPivotToLocalPoint(target, reference, localPoint + offset);
+    }
+
+    private void SetRectCenterToPointer(RectTransform target, PointerEventData eventData, RectTransform relativeTo = null)
+    {
+        if (target == null || rootCanvas == null)
+            return;
+
+        RectTransform reference = relativeTo != null
+            ? relativeTo
+            : rootCanvas.transform as RectTransform;
+
+        if (reference == null)
+            return;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            reference,
+            eventData.position,
+            GetEventCamera(eventData),
+            out Vector2 pointerLocal
+        );
+
+        Vector2 size = target.rect.size;
+        Vector2 pivot = target.pivot;
+
+        Vector2 centerOffsetFromPivot = new Vector2(
+            (0.5f - pivot.x) * size.x,
+            (0.5f - pivot.y) * size.y
+        );
+
+        Vector2 wantedPivotLocal = pointerLocal - centerOffsetFromPivot;
+
+        SetRectPivotToLocalPoint(target, reference, wantedPivotLocal);
+    }
+
+    private void SetRectPivotToLocalPoint(RectTransform target, RectTransform reference, Vector2 localPoint)
+    {
+        if (target == null || reference == null)
+            return;
+
         if (target.parent == reference)
         {
             target.anchoredPosition = localPoint;
@@ -422,7 +580,7 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             if (parentRT != null)
             {
                 Vector3 parentLocal = parentRT.InverseTransformPoint(world);
-                target.anchoredPosition = parentLocal;
+                target.anchoredPosition = new Vector2(parentLocal.x, parentLocal.y);
             }
         }
     }
@@ -437,6 +595,14 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
             return loopZoneByGeometry;
         }
 
+        DropZone ifElseZoneByGeometry = FindIfElseDropZoneByPointerGeometry(eventData);
+
+        if (ifElseZoneByGeometry != null)
+        {
+            NormalizeDropZone(ifElseZoneByGeometry);
+            return ifElseZoneByGeometry;
+        }
+
         List<RaycastResult> results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
 
@@ -446,6 +612,14 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         {
             NormalizeDropZone(loopZoneByRaycast);
             return loopZoneByRaycast;
+        }
+
+        DropZone ifElseZoneByRaycast = FindIfElseDropZoneByRaycast(results);
+
+        if (ifElseZoneByRaycast != null)
+        {
+            NormalizeDropZone(ifElseZoneByRaycast);
+            return ifElseZoneByRaycast;
         }
 
         DropZone bestZone = null;
@@ -606,6 +780,133 @@ public class DraggableBlock : MonoBehaviour, IBeginDragHandler, IDragHandler, IE
         zone.zoneType = DropZoneType.LoopBranch;
         zone.content = bestLoop.loopContent;
         zone.workspaceContent = bestLoop.loopContent;
+
+        return zone;
+    }
+
+    private DropZone FindIfElseDropZoneByPointerGeometry(PointerEventData eventData)
+    {
+        if (eventData == null)
+            return null;
+
+        IfElseBlockUI[] ifBlocks = FindObjectsByType<IfElseBlockUI>(FindObjectsSortMode.None);
+
+        IfElseBlockUI bestIfElse = null;
+        DropZone bestZone = null;
+        int bestDepth = -1;
+
+        Camera cam = GetEventCamera(eventData);
+
+        foreach (IfElseBlockUI ifElse in ifBlocks)
+        {
+            if (ifElse == null)
+                continue;
+
+            if (!isPaletteSample && ifElse.gameObject == gameObject)
+                continue;
+
+            if (ifElse.ifContent != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(ifElse.ifContent, eventData.position, cam))
+            {
+                int depth = GetTransformDepth(ifElse.transform);
+
+                if (depth > bestDepth)
+                {
+                    bestDepth = depth;
+                    bestIfElse = ifElse;
+                    bestZone = FindDropZoneForContent(ifElse.ifContent, DropZoneType.IfBranch);
+                }
+            }
+
+            if (ifElse.elseContent != null &&
+                RectTransformUtility.RectangleContainsScreenPoint(ifElse.elseContent, eventData.position, cam))
+            {
+                int depth = GetTransformDepth(ifElse.transform);
+
+                if (depth > bestDepth)
+                {
+                    bestDepth = depth;
+                    bestIfElse = ifElse;
+                    bestZone = FindDropZoneForContent(ifElse.elseContent, DropZoneType.ElseBranch);
+                }
+            }
+        }
+
+        if (bestIfElse == null || bestZone == null)
+            return null;
+
+        bestZone.ownerIfElse = bestIfElse;
+
+        if (bestZone.zoneType == DropZoneType.IfBranch ||
+            bestZone.zoneType == DropZoneType.If ||
+            bestZone.zoneType == DropZoneType.IfContent ||
+            bestZone.zoneType == DropZoneType.IfTrue)
+        {
+            bestZone.content = bestIfElse.ifContent;
+            bestZone.workspaceContent = bestIfElse.ifContent;
+        }
+        else
+        {
+            bestZone.content = bestIfElse.elseContent;
+            bestZone.workspaceContent = bestIfElse.elseContent;
+        }
+
+        return bestZone;
+    }
+
+    private DropZone FindIfElseDropZoneByRaycast(List<RaycastResult> results)
+    {
+        DropZone bestZone = null;
+        int bestScore = int.MinValue;
+
+        foreach (RaycastResult result in results)
+        {
+            DropZone zone = result.gameObject.GetComponentInParent<DropZone>();
+
+            if (zone == null)
+                continue;
+
+            IfElseBlockUI owner = zone.GetComponentInParent<IfElseBlockUI>();
+
+            if (owner == null)
+                continue;
+
+            if (!isPaletteSample && owner.gameObject == gameObject)
+                continue;
+
+            zone.ownerIfElse = owner;
+            NormalizeDropZone(zone);
+
+            if (!IsBranchZone(zone))
+                continue;
+
+            int score = GetTransformDepth(zone.transform);
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestZone = zone;
+            }
+        }
+
+        return bestZone;
+    }
+
+    private DropZone FindDropZoneForContent(RectTransform content, DropZoneType fallbackType)
+    {
+        if (content == null)
+            return null;
+
+        DropZone zone = content.GetComponent<DropZone>();
+
+        if (zone == null)
+            zone = content.GetComponentInParent<DropZone>();
+
+        if (zone == null)
+            zone = content.GetComponentInChildren<DropZone>(true);
+
+        if (zone != null)
+            zone.zoneType = fallbackType;
 
         return zone;
     }

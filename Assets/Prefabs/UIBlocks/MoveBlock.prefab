@@ -145,6 +145,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8050edfe0f6aa48089db529c23abc40f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugDelete: 1
 --- !u!1 &3365269636588788252
 GameObject:
   m_ObjectHideFlags: 0
@@ -223,9 +224,9 @@ RectTransform:
   - {fileID: 8724725981130597626}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 18, y: 323}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 978, y: -217}
   m_SizeDelta: {x: 200, y: 70}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4981803755690335814
@@ -334,7 +335,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 74fc37c333f80d243ac978c7c2f7073a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  definition: {fileID: 11400000, guid: 7624b760677d3184babd9743be824eb2, type: 2}
+  definition: {fileID: 11400000, guid: adbd856300f074421a825f63b5a9441a, type: 2}
   blockUIPrefab: {fileID: 7042600820128952894}
   titleText: {fileID: 1316225296250130320}
 --- !u!114 &3685859376893215640
@@ -367,10 +368,18 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 14ea6c062c90e44b9879c88549d2e9b1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  type: 1
+  type: 2
+  loopMode: 0
   repeat: 1
+  loopBranchStart: {fileID: 0}
   prev: {fileID: 0}
   next: {fileID: 0}
+  lidarSide: 1
+  compare: 1
+  distanceMeters: 0.04
+  trueBranchStart: {fileID: 0}
+  falseBranchStart: {fileID: 0}
+  conditions: []
 --- !u!114 &284694159139118412
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -529,7 +538,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -1.6724014, y: 2.7134018}
+  m_AnchoredPosition: {x: -1.6723938, y: 2.7134094}
   m_SizeDelta: {x: -12.5432, y: -5.4267}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1734220575031711739

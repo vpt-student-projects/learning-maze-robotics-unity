@@ -17,9 +17,14 @@ public class BlockChainManager : MonoBehaviour
     public float workspaceMinHeight = 900f;
     public float workspaceBottomPadding = 260f;
 
+    [Header("Workspace Chain Centering")]
+    public bool centerWorkspaceChainX = true;
+    public float workspaceChainCenterOffsetX = 0f;
+
     [Header("Debug")]
-    public bool debugChainMove = true;
-    public bool debugWorkspaceSize = true;
+    public bool debugChainMove = false;
+    public bool debugWorkspaceSize = false;
+    public bool debugWorkspaceCentering = false;
 
     private readonly List<BlockCommand> blocks = new List<BlockCommand>();
 
@@ -45,6 +50,7 @@ public class BlockChainManager : MonoBehaviour
             return;
 
         Detach(block);
+
         blocks.Remove(block);
 
         BlockCommand[] nestedBlocks = block.GetComponentsInChildren<BlockCommand>(true);
@@ -52,7 +58,10 @@ public class BlockChainManager : MonoBehaviour
         foreach (BlockCommand nested in nestedBlocks)
         {
             if (nested != null)
+            {
+                Detach(nested);
                 blocks.Remove(nested);
+            }
         }
 
         RefreshAllContainers();
@@ -127,6 +136,9 @@ public class BlockChainManager : MonoBehaviour
             if (other == null || other == moving)
                 continue;
 
+            if (!other.gameObject.activeInHierarchy)
+                continue;
+
             if (other.transform.parent != movingParent)
                 continue;
 
@@ -136,6 +148,11 @@ public class BlockChainManager : MonoBehaviour
 
             if (otherLoop != null)
                 otherLoop.RefreshSize();
+
+            IfElseBlockUI otherIfElse = other.GetComponent<IfElseBlockUI>();
+
+            if (otherIfElse != null)
+                otherIfElse.RefreshSize();
 
             BlockSnapPoints otherSnap = other.GetComponent<BlockSnapPoints>();
 
@@ -323,19 +340,10 @@ public class BlockChainManager : MonoBehaviour
         if (workspaceRoot == null)
             return;
 
-        /*
-         * WorkPanel является Content у ScrollView.
-         * ContentSizeFitter с Vertical Fit = Preferred Size может каждый кадр
-         * возвращать высоту WorkPanel назад, например на 160.
-         *
-         * Поэтому высотой WorkPanel теперь управляет BlockChainManager вручную.
-         */
         ContentSizeFitter fitter = workspaceRoot.GetComponent<ContentSizeFitter>();
 
         if (fitter != null)
-        {
             fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
-        }
 
         VerticalLayoutGroup verticalLayout = workspaceRoot.GetComponent<VerticalLayoutGroup>();
 
@@ -360,9 +368,7 @@ public class BlockChainManager : MonoBehaviour
         GridLayoutGroup gridLayout = workspaceRoot.GetComponent<GridLayoutGroup>();
 
         if (gridLayout != null)
-        {
             gridLayout.enabled = false;
-        }
 
         LayoutElement rootLayoutElement = workspaceRoot.GetComponent<LayoutElement>();
 
@@ -383,6 +389,9 @@ public class BlockChainManager : MonoBehaviour
         foreach (BlockCommand block in allBlocks)
         {
             if (block == null)
+                continue;
+
+            if (!block.gameObject.activeInHierarchy)
                 continue;
 
             MakeBlockIgnoreUnityLayout(block.transform);
@@ -432,6 +441,13 @@ public class BlockChainManager : MonoBehaviour
         for (int i = 0; i < container.childCount; i++)
         {
             Transform child = container.GetChild(i);
+
+            if (child == null)
+                continue;
+
+            if (!child.gameObject.activeInHierarchy)
+                continue;
+
             BlockCommand cmd = child.GetComponent<BlockCommand>();
 
             if (cmd == null)
@@ -468,6 +484,9 @@ public class BlockChainManager : MonoBehaviour
             if (loop == null)
                 continue;
 
+            if (!loop.gameObject.activeInHierarchy)
+                continue;
+
             MakeBlockIgnoreUnityLayout(loop.transform);
             loop.RefreshSize();
         }
@@ -481,7 +500,44 @@ public class BlockChainManager : MonoBehaviour
             return result;
 
         LoopBlockUI[] loops = workspaceRoot.GetComponentsInChildren<LoopBlockUI>(true);
-        result.AddRange(loops);
+
+        foreach (LoopBlockUI loop in loops)
+        {
+            if (loop == null)
+                continue;
+
+            if (!loop.gameObject.activeInHierarchy)
+                continue;
+
+            result.Add(loop);
+        }
+
+        result.Sort((a, b) =>
+            GetTransformDepth(b.transform).CompareTo(GetTransformDepth(a.transform))
+        );
+
+        return result;
+    }
+
+    private List<IfElseBlockUI> GetIfElseBlocksBottomUp()
+    {
+        List<IfElseBlockUI> result = new List<IfElseBlockUI>();
+
+        if (workspaceRoot == null)
+            return result;
+
+        IfElseBlockUI[] ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+
+        foreach (IfElseBlockUI ifUI in ifBlocks)
+        {
+            if (ifUI == null)
+                continue;
+
+            if (!ifUI.gameObject.activeInHierarchy)
+                continue;
+
+            result.Add(ifUI);
+        }
 
         result.Sort((a, b) =>
             GetTransformDepth(b.transform).CompareTo(GetTransformDepth(a.transform))
@@ -501,7 +557,7 @@ public class BlockChainManager : MonoBehaviour
 
         foreach (LoopBlockUI loop in loops)
         {
-            if (loop == null)
+            if (loop == null || !loop.gameObject.activeInHierarchy)
                 continue;
 
             if (loop.loopContent != null && !containers.Contains(loop.loopContent))
@@ -512,7 +568,7 @@ public class BlockChainManager : MonoBehaviour
 
         foreach (IfElseBlockUI ifUI in ifBlocks)
         {
-            if (ifUI == null)
+            if (ifUI == null || !ifUI.gameObject.activeInHierarchy)
                 continue;
 
             if (ifUI.ifContent != null && !containers.Contains(ifUI.ifContent))
@@ -551,10 +607,32 @@ public class BlockChainManager : MonoBehaviour
 
         foreach (LoopBlockUI loop in loops)
         {
-            if (loop == null)
+            if (loop == null || !loop.gameObject.activeInHierarchy)
                 continue;
 
             if (loop.loopContent == container)
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool IsIfElseContentContainer(RectTransform container)
+    {
+        if (container == null || workspaceRoot == null)
+            return false;
+
+        IfElseBlockUI[] ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+
+        foreach (IfElseBlockUI ifUI in ifBlocks)
+        {
+            if (ifUI == null || !ifUI.gameObject.activeInHierarchy)
+                continue;
+
+            if (ifUI.ifContent == container)
+                return true;
+
+            if (ifUI.elseContent == container)
                 return true;
         }
 
@@ -573,7 +651,7 @@ public class BlockChainManager : MonoBehaviour
             if (container == null)
                 continue;
 
-            if (IsLoopContentContainer(container))
+            if (IsLoopContentContainer(container) || IsIfElseContentContainer(container))
             {
                 RebuildContainerChainByHierarchy(container);
                 continue;
@@ -594,14 +672,22 @@ public class BlockChainManager : MonoBehaviour
 
         RebuildContainerChainByHierarchy(container);
 
-        if (IsLoopContentContainer(container))
+        if (IsLoopContentContainer(container) || IsIfElseContentContainer(container))
             return;
 
         BlockCommand first = null;
 
         for (int i = 0; i < container.childCount; i++)
         {
-            BlockCommand cmd = container.GetChild(i).GetComponent<BlockCommand>();
+            Transform child = container.GetChild(i);
+
+            if (child == null)
+                continue;
+
+            if (!child.gameObject.activeInHierarchy)
+                continue;
+
+            BlockCommand cmd = child.GetComponent<BlockCommand>();
 
             if (cmd != null)
             {
@@ -613,23 +699,42 @@ public class BlockChainManager : MonoBehaviour
         if (first == null)
             return;
 
-        LayoutFromChainRoot(first);
+        bool shouldCenterRootX = container == workspaceRoot && centerWorkspaceChainX;
+
+        LayoutFromChainRoot(first, container, shouldCenterRootX);
     }
 
-    private void LayoutFromChainRoot(BlockCommand anyInChain)
+    private void LayoutFromChainRoot(
+        BlockCommand anyInChain,
+        RectTransform container,
+        bool centerRootX
+    )
     {
         if (anyInChain == null)
             return;
 
+        if (!anyInChain.gameObject.activeInHierarchy)
+            return;
+
         BlockCommand root = anyInChain;
 
-        while (root.prev != null && root.prev.transform.parent == root.transform.parent)
+        while (root.prev != null &&
+               root.prev.gameObject.activeInHierarchy &&
+               root.prev.transform.parent == root.transform.parent)
+        {
             root = root.prev;
+        }
+
+        if (centerRootX)
+            CenterChainRootX(root, container);
 
         BlockCommand cur = root;
 
         while (cur != null)
         {
+            if (!cur.gameObject.activeInHierarchy)
+                break;
+
             MakeBlockIgnoreUnityLayout(cur.transform);
 
             LoopBlockUI curLoop = cur.GetComponent<LoopBlockUI>();
@@ -637,12 +742,19 @@ public class BlockChainManager : MonoBehaviour
             if (curLoop != null)
                 curLoop.RefreshSize();
 
+            IfElseBlockUI curIfElse = cur.GetComponent<IfElseBlockUI>();
+
+            if (curIfElse != null)
+                curIfElse.RefreshSize();
+
             BlockSnapPoints curSnap = cur.GetComponent<BlockSnapPoints>();
 
             if (curSnap == null)
                 break;
 
-            if (cur.next != null && cur.next.transform.parent == cur.transform.parent)
+            if (cur.next != null &&
+                cur.next.gameObject.activeInHierarchy &&
+                cur.next.transform.parent == cur.transform.parent)
             {
                 MakeBlockIgnoreUnityLayout(cur.next.transform);
 
@@ -650,6 +762,11 @@ public class BlockChainManager : MonoBehaviour
 
                 if (nextLoop != null)
                     nextLoop.RefreshSize();
+
+                IfElseBlockUI nextIfElse = cur.next.GetComponent<IfElseBlockUI>();
+
+                if (nextIfElse != null)
+                    nextIfElse.RefreshSize();
 
                 RectTransform nextRT = cur.next.GetComponent<RectTransform>();
                 BlockSnapPoints nextSnap = cur.next.GetComponent<BlockSnapPoints>();
@@ -672,10 +789,6 @@ public class BlockChainManager : MonoBehaviour
                         $" curID={cur.GetInstanceID()}" +
                         $" curPath={GetTransformPath(cur.transform)}" +
                         $" curIndex={cur.transform.GetSiblingIndex()}" +
-                        $" curIsLoop={(curLoop != null)}" +
-                        $" curLoopContentPath={(curLoop != null && curLoop.loopContent != null ? GetTransformPath(curLoop.loopContent) : "NULL")}" +
-                        $" curLoopContentChildCount={(curLoop != null && curLoop.loopContent != null ? curLoop.loopContent.childCount.ToString() : "NULL")}" +
-                        $" curLoopCommandChildren={(curLoop != null ? CountCommandChildren(curLoop.loopContent).ToString() : "NULL")}" +
                         $" curBottom={curBottom}" +
                         $" next={cur.next.name}" +
                         $" nextID={cur.next.GetInstanceID()}" +
@@ -717,6 +830,76 @@ public class BlockChainManager : MonoBehaviour
         }
     }
 
+    private void CenterChainRootX(BlockCommand root, RectTransform container)
+    {
+        if (root == null || container == null)
+            return;
+
+        RectTransform rootRT = root.transform as RectTransform;
+
+        if (rootRT == null)
+            return;
+
+        BlockSnapPoints rootSnap = root.GetComponent<BlockSnapPoints>();
+
+        Vector3 rootTopWorld;
+
+        if (rootSnap != null)
+            rootTopWorld = rootSnap.TopWorld;
+        else
+            rootTopWorld = rootRT.position;
+
+        float containerCenterWorldX = GetContainerCenterWorldX(container);
+        float offsetWorldX = container.TransformVector(new Vector3(workspaceChainCenterOffsetX, 0f, 0f)).x;
+
+        Vector3 desiredTopWorld = rootTopWorld;
+        desiredTopWorld.x = containerCenterWorldX + offsetWorldX;
+
+        Vector3 delta = desiredTopWorld - rootTopWorld;
+        delta.y = 0f;
+        delta.z = 0f;
+
+        rootRT.position += delta;
+
+        ForceCanvasOnly();
+
+        if (debugWorkspaceCentering)
+        {
+            Vector3 afterTopWorld;
+
+            if (rootSnap != null)
+                afterTopWorld = rootSnap.TopWorld;
+            else
+                afterTopWorld = rootRT.position;
+
+            Debug.Log(
+                $"[WORKSPACE CENTER DEBUG]" +
+                $" root={root.name}" +
+                $" container={GetTransformPath(container)}" +
+                $" beforeTop={rootTopWorld}" +
+                $" desiredTop={desiredTopWorld}" +
+                $" afterTop={afterTopWorld}" +
+                $" delta={delta}"
+            );
+        }
+    }
+
+    private float GetContainerCenterWorldX(RectTransform container)
+    {
+        if (container == null)
+            return 0f;
+
+        Vector3 localCenter = new Vector3(
+            container.rect.center.x,
+            container.rect.center.y,
+            0f
+        );
+
+        Vector3 worldCenter = container.TransformPoint(localCenter);
+
+        return worldCenter.x;
+    }
+
     private void UpdateWorkspaceContentHeight()
     {
         if (!autoResizeWorkspace)
@@ -740,10 +923,6 @@ public class BlockChainManager : MonoBehaviour
             if (!block.gameObject.activeInHierarchy)
                 continue;
 
-            /*
-             * Считаем только блоки, которые лежат прямо в WorkPanel.
-             * Внутренние блоки цикла уже входят в визуальный размер самого LoopBlock.
-             */
             if (block.transform.parent != workspaceRoot)
                 continue;
 
@@ -805,10 +984,6 @@ public class BlockChainManager : MonoBehaviour
 
         Canvas.ForceUpdateCanvases();
 
-        /*
-         * После parent layout мог снова тронуть WorkPanel.
-         * Поэтому ещё раз принудительно ставим нужную высоту.
-         */
         workspaceRoot.SetSizeWithCurrentAnchors(
             RectTransform.Axis.Vertical,
             neededHeight
@@ -841,15 +1016,18 @@ public class BlockChainManager : MonoBehaviour
         if (workspaceRoot == null)
             return;
 
-        IfElseBlockUI[] ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
+        List<IfElseBlockUI> ifBlocks = GetIfElseBlocksBottomUp();
 
         foreach (IfElseBlockUI ifUI in ifBlocks)
         {
             if (ifUI == null || ifUI.command == null)
                 continue;
 
+            MakeBlockIgnoreUnityLayout(ifUI.transform);
+
             ifUI.command.trueBranchStart = RebuildContainerChainByHierarchy(ifUI.ifContent);
             ifUI.command.falseBranchStart = RebuildContainerChainByHierarchy(ifUI.elseContent);
+            ifUI.RefreshSize();
         }
     }
 
@@ -882,6 +1060,7 @@ public class BlockChainManager : MonoBehaviour
         foreach (BlockCommand block in blocks)
         {
             if (block != null &&
+                block.gameObject.activeInHierarchy &&
                 block.type == BlockType.Start &&
                 block.transform.parent == workspaceRoot)
             {
@@ -892,6 +1071,7 @@ public class BlockChainManager : MonoBehaviour
         foreach (BlockCommand block in blocks)
         {
             if (block != null &&
+                block.gameObject.activeInHierarchy &&
                 block.prev == null &&
                 block.transform.parent == workspaceRoot)
             {
@@ -913,7 +1093,13 @@ public class BlockChainManager : MonoBehaviour
         {
             Transform child = container.GetChild(i);
 
-            if (child != null && child.GetComponent<BlockCommand>() != null)
+            if (child == null)
+                continue;
+
+            if (!child.gameObject.activeInHierarchy)
+                continue;
+
+            if (child.GetComponent<BlockCommand>() != null)
                 count++;
         }
 

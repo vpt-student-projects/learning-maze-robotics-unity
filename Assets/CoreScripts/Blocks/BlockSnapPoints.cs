@@ -13,10 +13,6 @@ public class BlockSnapPoints : MonoBehaviour
 
             Vector3 result = topSnap != null ? topSnap.position : transform.position;
 
-            Debug.Log(
-                $"[SNAP READ TOP] {name} | topSnap={(topSnap != null ? topSnap.name : "NULL")} | world={result}"
-            );
-
             return result;
         }
     }
@@ -35,10 +31,6 @@ public class BlockSnapPoints : MonoBehaviour
 
                 if (bottomSnap != null)
                     bottomSnap.position = realBottom;
-
-                Debug.Log(
-                    $"[SNAP READ BOTTOM LOOP REAL] {name} | bottomSnap={(bottomSnap != null ? bottomSnap.name : "NULL")} | world={realBottom} | local={(bottomSnap != null ? bottomSnap.anchoredPosition.ToString() : "NULL")} | visualHeight={loop.CurrentVisualHeight}"
-                );
 
                 return realBottom;
             }
