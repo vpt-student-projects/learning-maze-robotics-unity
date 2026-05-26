@@ -55,7 +55,7 @@ public class MazeMenuController : MonoBehaviour
 
     void Start()
     {
-        Debug.Log("🔄 Инициализация MazeMenuController...");
+        //Debug.Log("🔄 Инициализация MazeMenuController...");
 
         // Проверяем обязательные ссылки
         if (mazeGenerator == null)

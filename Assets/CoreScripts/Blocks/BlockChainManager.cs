@@ -246,6 +246,10 @@ public class BlockChainManager : MonoBehaviour
 
             RelayoutAllContainersBottomUp();
 
+            RefreshIfElseBranches();
+            RefreshLoopBranches();
+            RefreshLoopBlockSizes();
+
             UpdateWorkspaceContentHeight();
 
             ForceCanvasOnly();
@@ -309,6 +313,10 @@ public class BlockChainManager : MonoBehaviour
             RebuildAllChainsByHierarchy();
 
             RelayoutAllContainersBottomUp();
+
+            RefreshIfElseBranches();
+            RefreshLoopBranches();
+            RefreshLoopBlockSizes();
 
             UpdateWorkspaceContentHeight();
 
@@ -617,28 +625,6 @@ public class BlockChainManager : MonoBehaviour
         return false;
     }
 
-    private bool IsIfElseContentContainer(RectTransform container)
-    {
-        if (container == null || workspaceRoot == null)
-            return false;
-
-        IfElseBlockUI[] ifBlocks = workspaceRoot.GetComponentsInChildren<IfElseBlockUI>(true);
-
-        foreach (IfElseBlockUI ifUI in ifBlocks)
-        {
-            if (ifUI == null || !ifUI.gameObject.activeInHierarchy)
-                continue;
-
-            if (ifUI.ifContent == container)
-                return true;
-
-            if (ifUI.elseContent == container)
-                return true;
-        }
-
-        return false;
-    }
-
     private void RelayoutAllContainersBottomUp()
     {
         if (workspaceRoot == null)
@@ -651,7 +637,15 @@ public class BlockChainManager : MonoBehaviour
             if (container == null)
                 continue;
 
-            if (IsLoopContentContainer(container) || IsIfElseContentContainer(container))
+            /*
+             * ВАЖНО:
+             * loopContent НЕ раскладываем здесь, потому что внутри цикла
+             * блоки раскладывает LoopBlockUI.
+             *
+             * А вот ifContent / elseContent ОБЯЗАТЕЛЬНО раскладываем здесь,
+             * потому что иначе блоки внутри IF/ELSE накладываются друг на друга.
+             */
+            if (IsLoopContentContainer(container))
             {
                 RebuildContainerChainByHierarchy(container);
                 continue;
@@ -672,7 +666,7 @@ public class BlockChainManager : MonoBehaviour
 
         RebuildContainerChainByHierarchy(container);
 
-        if (IsLoopContentContainer(container) || IsIfElseContentContainer(container))
+        if (IsLoopContentContainer(container))
             return;
 
         BlockCommand first = null;

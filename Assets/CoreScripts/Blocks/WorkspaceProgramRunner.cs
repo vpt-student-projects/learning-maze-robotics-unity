@@ -7,7 +7,10 @@ public class WorkspaceProgramRunner : MonoBehaviour
     public BlockChainManager chain;
     public LidarController lidar;
 
-    [Header("Maze Center")]
+    [Header("Maze Timer / Finish")]
+    public MazeTimer mazeTimer;
+
+    [Header("Maze Center OLD")]
     public Transform mazeCenter;
     public Transform carCenter;
     public float centerReachDistance = 0.35f;
@@ -62,6 +65,8 @@ public class WorkspaceProgramRunner : MonoBehaviour
             Debug.LogError("RUNNER: не найден рабочий LidarController!");
             yield break;
         }
+
+        ResolveMazeTimer();
 
         Debug.Log($"RUNNER: selected lidar = {lidar.name}");
 
@@ -217,35 +222,108 @@ public class WorkspaceProgramRunner : MonoBehaviour
 
         if (cmd.loopMode == LoopExecutionMode.UntilCarInCenter)
         {
-            Debug.Log("RUNNER LOOP UNTIL CENTER: start");
+            /*
+             * ВАЖНО:
+             * Название enum пока старое — UntilCarInCenter,
+             * но логика теперь НЕ центр лабиринта.
+             *
+             * Теперь этот режим работает по MazeTimer:
+             * цикл выполняется, пока таймер не зафиксировал финиш.
+             */
+            Debug.Log("RUNNER LOOP UNTIL FINISH BY TIMER: start");
+
+            MazeTimer timer = ResolveMazeTimer();
+
+            if (timer == null)
+            {
+                Debug.LogError(
+                    "RUNNER LOOP UNTIL FINISH BY TIMER: MazeTimer не найден. " +
+                    "Назначь MazeTimer в WorkspaceProgramRunner или CarController."
+                );
+
+                yield break;
+            }
+
+            timer.RefreshFinishArea();
 
             int iteration = 0;
 
-            while (!IsCarInMazeCenter())
+            while (!IsFinishReachedByTimer())
             {
                 iteration++;
 
                 if (iteration > maxUntilCenterIterations)
                 {
                     Debug.LogWarning(
-                        $"RUNNER LOOP UNTIL CENTER: остановлено, превышен лимит {maxUntilCenterIterations}. " +
-                        "Проверь логику блоков, возможно робот не может попасть в центр."
+                        $"RUNNER LOOP UNTIL FINISH BY TIMER: остановлено, превышен лимит {maxUntilCenterIterations}. " +
+                        "Проверь логику блоков, возможно робот не может попасть на финиш."
                     );
 
                     yield break;
                 }
 
-                Debug.Log($"RUNNER LOOP UNTIL CENTER ITERATION: {iteration}");
+                Debug.Log($"RUNNER LOOP UNTIL FINISH ITERATION: {iteration}");
 
                 yield return ExecuteChain(cmd.loopBranchStart);
 
+                /*
+                 * Даём MazeTimer.Update() один кадр,
+                 * чтобы он успел проверить финиш после движения машины.
+                 */
                 yield return null;
             }
 
-            Debug.Log("RUNNER LOOP UNTIL CENTER: robot is in center ✅");
+            Debug.Log("RUNNER LOOP UNTIL FINISH BY TIMER: finish reached ✅");
         }
     }
 
+    private MazeTimer ResolveMazeTimer()
+    {
+        if (mazeTimer != null)
+            return mazeTimer;
+
+        if (car != null && car.mazeTimer != null)
+        {
+            mazeTimer = car.mazeTimer;
+        }
+
+        if (mazeTimer == null)
+        {
+            mazeTimer = FindObjectOfType<MazeTimer>();
+        }
+
+        if (mazeTimer != null)
+        {
+            if (mazeTimer.carController == null && car != null)
+                mazeTimer.carController = car;
+
+            if (car != null && car.mazeTimer == null)
+                car.mazeTimer = mazeTimer;
+
+            mazeTimer.RefreshFinishArea();
+        }
+
+        return mazeTimer;
+    }
+
+    private bool IsFinishReachedByTimer()
+    {
+        MazeTimer timer = ResolveMazeTimer();
+
+        if (timer == null)
+            return false;
+
+        bool reached = timer.HasReachedFinish;
+
+        Debug.Log($"RUNNER FINISH TIMER CHECK: HasReachedFinish={reached}");
+
+        return reached;
+    }
+
+    /*
+     * Старый метод центра оставляю в файле, чтобы ничего не сломать,
+     * но новый режим цикла его больше не использует.
+     */
     private bool IsCarInMazeCenter()
     {
         Transform center = GetMazeCenterTransform();

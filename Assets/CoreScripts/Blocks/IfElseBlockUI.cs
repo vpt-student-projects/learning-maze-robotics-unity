@@ -461,11 +461,6 @@ public class IfElseBlockUI : MonoBehaviour
 
         if (initialized)
         {
-            Debug.Log(
-                $"IF UI APPLY MAIN: side={command.lidarSide}, " +
-                $"compare={command.compare}, distance={command.distanceMeters}, " +
-                $"extraCount={command.conditions.Count}"
-            );
         }
     }
 

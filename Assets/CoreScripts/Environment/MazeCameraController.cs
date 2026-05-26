@@ -241,7 +241,7 @@ public class MazeCameraController : MonoBehaviour
 
         mazeCamera.orthographicSize = Mathf.Max(requiredSizeX, requiredSizeZ, minOrthographicSize);
 
-        Debug.Log($"📷 Обзор на весь лабиринт: размер={mazeCamera.orthographicSize:F1}, лабиринт={mazeWidth:F1}x{mazeDepth:F1}");
+        //Debug.Log($"📷 Обзор на весь лабиринт: размер={mazeCamera.orthographicSize:F1}, лабиринт={mazeWidth:F1}x{mazeDepth:F1}");
     }
 
     private void SetupFollowCarView()

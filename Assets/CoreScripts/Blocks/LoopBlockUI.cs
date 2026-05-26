@@ -40,8 +40,7 @@ public class LoopBlockUI : MonoBehaviour
     public float defaultBlockHeight = 60f;
 
     [Header("Debug")]
-    public bool debugLoopSize = true;
-    public bool debugOnlyWhenHasChildren = true;
+    public bool debugLoopSize = false;
 
     private bool initialized;
     private bool refreshing;
@@ -56,8 +55,8 @@ public class LoopBlockUI : MonoBehaviour
     private Vector2 baseFooterPos;
     private Vector2 baseBottomSnapPos;
 
-    private float lastStableGrow = 0f;
-    private int lastStableBlockChildCount = 0;
+    private int lastBlockChildCount = -1;
+    private float lastUsedGrow = -1f;
 
     public float CurrentVisualHeight
     {
@@ -88,10 +87,18 @@ public class LoopBlockUI : MonoBehaviour
         LoadFromCommand();
 
         if (repeatInput != null)
-            repeatInput.onValueChanged.AddListener(_ => ApplyToCommand());
+            repeatInput.onValueChanged.AddListener(_ =>
+            {
+                ApplyToCommand();
+                RefreshSize();
+            });
 
         if (modeDropdown != null)
-            modeDropdown.onValueChanged.AddListener(_ => ApplyToCommand());
+            modeDropdown.onValueChanged.AddListener(_ =>
+            {
+                ApplyToCommand();
+                RefreshSize();
+            });
 
         RefreshSize();
     }
@@ -100,12 +107,23 @@ public class LoopBlockUI : MonoBehaviour
     {
         DisableUnityAutoLayoutOnLoopContent();
         SyncSnapPointReferences();
+
+        if (initialized)
+            RefreshSize();
     }
 
-    private void LateUpdate()
-    {
-        RefreshSize();
-    }
+    /*
+     * ВАЖНО:
+     * Здесь больше НЕТ LateUpdate() с постоянным RefreshSize().
+     *
+     * Раньше цикл пересчитывался каждый кадр.
+     * Когда ты скроллил WorkPanel колесиком/двумя пальцами,
+     * Unity на кадр могла дать другие bounds, и цикл думал,
+     * что внутри стало больше места/блоков.
+     *
+     * Теперь размер цикла обновляется только когда его реально зовут:
+     * BlockChainManager, Drop/Drag, DeleteBlock или UI самого цикла.
+     */
 
     private void DisableUnityAutoLayoutOnLoopContent()
     {
@@ -140,13 +158,13 @@ public class LoopBlockUI : MonoBehaviour
 
         if (bodyRoot != null)
         {
-            baseBodyHeight = bodyRoot.rect.height;
+            baseBodyHeight = Mathf.Max(bodyRoot.rect.height, Mathf.Abs(bodyRoot.sizeDelta.y));
             baseBodyPos = bodyRoot.anchoredPosition;
         }
 
         if (loopContent != null)
         {
-            baseContentHeight = loopContent.rect.height;
+            baseContentHeight = Mathf.Max(loopContent.rect.height, Mathf.Abs(loopContent.sizeDelta.y));
             baseContentPos = loopContent.anchoredPosition;
         }
 
@@ -166,8 +184,8 @@ public class LoopBlockUI : MonoBehaviour
 
         currentVisualHeight = baseVisualHeight;
 
-        lastStableGrow = 0f;
-        lastStableBlockChildCount = CountActiveBlockChildren();
+        lastBlockChildCount = CountActiveBlockChildren();
+        lastUsedGrow = 0f;
 
         initialized = true;
     }
@@ -280,39 +298,22 @@ public class LoopBlockUI : MonoBehaviour
 
         RefreshChildLoopsFirst();
 
+        int blockChildCount = CountActiveBlockChildren();
+
         float childrenHeight = LayoutChildrenByRealVisualBounds();
 
         float neededContentHeight = paddingTop + childrenHeight + paddingBottom;
-        float calculatedGrow = Mathf.Max(0f, neededContentHeight - baseContentHeight);
+        float grow = Mathf.Max(0f, neededContentHeight - baseContentHeight);
 
-        int blockChildCount = CountActiveBlockChildren();
-
-        float grow = calculatedGrow;
-
+        /*
+         * ВАЖНО:
+         * Раньше тут была логика lastStableGrow, которая не давала циклу уменьшаться.
+         * Из-за неё случайное увеличение во время скролла могло запомниться навсегда.
+         *
+         * Теперь grow всегда считается заново по реальным активным детям.
+         */
         if (blockChildCount == 0)
-        {
-            lastStableGrow = 0f;
             grow = 0f;
-        }
-        else
-        {
-            bool childWasRemoved = blockChildCount < lastStableBlockChildCount;
-
-            if (childWasRemoved)
-            {
-                lastStableGrow = calculatedGrow;
-                grow = calculatedGrow;
-            }
-            else
-            {
-                if (calculatedGrow < lastStableGrow)
-                    grow = lastStableGrow;
-                else
-                    lastStableGrow = calculatedGrow;
-            }
-        }
-
-        lastStableBlockChildCount = blockChildCount;
 
         bodyRoot.anchoredPosition = baseBodyPos;
         SetHeightOnly(bodyRoot, baseBodyHeight + grow);
@@ -344,55 +345,34 @@ public class LoopBlockUI : MonoBehaviour
 
         if (debugLoopSize)
         {
-            bool shouldLog = true;
+            bool changed =
+                blockChildCount != lastBlockChildCount ||
+                Mathf.Abs(grow - lastUsedGrow) > 0.5f;
 
-            if (debugOnlyWhenHasChildren)
-                shouldLog = blockChildCount > 0 || loopContent.childCount > 0;
-
-            if (shouldLog)
+            if (changed)
             {
                 Debug.Log(
                     $"[LOOP SIZE DEBUG]" +
                     $" name={name}" +
                     $" id={GetInstanceID()}" +
                     $" path={GetTransformPath(transform)}" +
-                    $" rootRectPath={(rootRect != null ? GetTransformPath(rootRect) : "NULL")}" +
-                    $" bodyRootPath={(bodyRoot != null ? GetTransformPath(bodyRoot) : "NULL")}" +
-                    $" loopContentPath={(loopContent != null ? GetTransformPath(loopContent) : "NULL")}" +
-                    $" footerPath={(footer != null ? GetTransformPath(footer) : "NULL")}" +
-                    $" bottomSnapPath={(bottomSnap != null ? GetTransformPath(bottomSnap) : "NULL")}" +
                     $" commandChildren={blockChildCount}" +
                     $" rawContentChildren={(loopContent != null ? loopContent.childCount.ToString() : "NULL")}" +
-                    $" childList={GetContentChildrenDebug()}" +
                     $" childrenHeight={childrenHeight}" +
                     $" neededContentHeight={neededContentHeight}" +
                     $" baseContentHeight={baseContentHeight}" +
-                    $" calculatedGrow={calculatedGrow}" +
                     $" usedGrow={grow}" +
                     $" visualHeight={currentVisualHeight}" +
-                    $" topWorld={GetTopSnapWorldForDebug()}" +
-                    $" realBottomWorld={GetRealBottomSnapWorld()}" +
                     $" bottomLocal={(bottomSnap != null ? bottomSnap.anchoredPosition.ToString() : "NULL")}" +
-                    $" bottomWorld={(bottomSnap != null ? bottomSnap.position.ToString() : "NULL")}" +
-                    $" footerLocal={(footer != null ? footer.anchoredPosition.ToString() : "NULL")}"
+                    $" bottomWorld={(bottomSnap != null ? bottomSnap.position.ToString() : "NULL")}"
                 );
             }
         }
 
+        lastBlockChildCount = blockChildCount;
+        lastUsedGrow = grow;
+
         refreshing = false;
-    }
-
-    private Vector3 GetTopSnapWorldForDebug()
-    {
-        BlockSnapPoints snap = GetComponent<BlockSnapPoints>();
-
-        if (snap != null && snap.topSnap != null)
-            return snap.topSnap.position;
-
-        if (rootRect != null)
-            return rootRect.position;
-
-        return transform.position;
     }
 
     private int CountActiveBlockChildren()
@@ -426,10 +406,23 @@ public class LoopBlockUI : MonoBehaviour
 
         for (int i = 0; i < loopContent.childCount; i++)
         {
-            LoopBlockUI childLoop = loopContent.GetChild(i).GetComponent<LoopBlockUI>();
+            Transform child = loopContent.GetChild(i);
+
+            if (child == null)
+                continue;
+
+            if (!child.gameObject.activeInHierarchy)
+                continue;
+
+            LoopBlockUI childLoop = child.GetComponent<LoopBlockUI>();
 
             if (childLoop != null)
                 childLoop.RefreshSize();
+
+            IfElseBlockUI childIfElse = child.GetComponent<IfElseBlockUI>();
+
+            if (childIfElse != null)
+                childIfElse.RefreshSize();
         }
     }
 
@@ -472,8 +465,6 @@ public class LoopBlockUI : MonoBehaviour
 
             float childHeight = Mathf.Max(bounds.size.y, GetFallbackChildHeight(child), defaultBlockHeight);
 
-            child.anchoredPosition = new Vector2(childX, child.anchoredPosition.y);
-
             y += childHeight + spacing;
             count++;
         }
@@ -495,6 +486,13 @@ public class LoopBlockUI : MonoBehaviour
 
         child.localScale = Vector3.one;
         child.localRotation = Quaternion.identity;
+
+        LayoutElement layoutElement = child.GetComponent<LayoutElement>();
+
+        if (layoutElement == null)
+            layoutElement = child.gameObject.AddComponent<LayoutElement>();
+
+        layoutElement.ignoreLayout = true;
     }
 
     private float GetFallbackChildHeight(RectTransform child)
@@ -508,6 +506,18 @@ public class LoopBlockUI : MonoBehaviour
         {
             childLoop.RefreshSize();
             return Mathf.Max(childLoop.CurrentVisualHeight, defaultBlockHeight);
+        }
+
+        IfElseBlockUI childIfElse = child.GetComponent<IfElseBlockUI>();
+
+        if (childIfElse != null)
+        {
+            childIfElse.RefreshSize();
+
+            RectTransform childIfElseRT = childIfElse.transform as RectTransform;
+
+            if (childIfElseRT != null)
+                return Mathf.Max(childIfElseRT.rect.height, Mathf.Abs(childIfElseRT.sizeDelta.y), defaultBlockHeight);
         }
 
         float height = 0f;
@@ -607,38 +617,6 @@ public class LoopBlockUI : MonoBehaviour
 
         rect.pivot = new Vector2(rect.pivot.x, 1f);
         rect.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
-    }
-
-    private string GetContentChildrenDebug()
-    {
-        if (loopContent == null)
-            return "NULL";
-
-        if (loopContent.childCount == 0)
-            return "EMPTY";
-
-        string result = "";
-
-        for (int i = 0; i < loopContent.childCount; i++)
-        {
-            Transform child = loopContent.GetChild(i);
-
-            if (child == null)
-                continue;
-
-            BlockCommand cmd = child.GetComponent<BlockCommand>();
-
-            if (result.Length > 0)
-                result += " | ";
-
-            result +=
-                $"#{i}:{child.name}" +
-                $" id={child.GetInstanceID()}" +
-                $" hasCmd={(cmd != null)}" +
-                $" path={GetTransformPath(child)}";
-        }
-
-        return result;
     }
 
     private string GetTransformPath(Transform t)

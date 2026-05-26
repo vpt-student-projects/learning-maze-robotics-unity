@@ -223,7 +223,7 @@ MonoBehaviour:
     - m_Text: "\u043A\u043E\u043B-\u0432\u043E \u0440\u0430\u0437"
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
-    - m_Text: "\u043F\u043E\u043A\u0430 \u043D\u0435 \u0432 \u0446\u0435\u043D\u0442\u0440\u0435"
+    - m_Text: "\u043F\u043E\u043A\u0430 \u043D\u0435 \u0444\u0438\u043D\u0438\u0448"
       m_Image: {fileID: 0}
       m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_OnValueChanged:
@@ -1343,6 +1343,8 @@ MonoBehaviour:
   dragLayer: {fileID: 0}
   chainManager: {fileID: 0}
   deleteButton: {fileID: 3913653343936164143}
+  centerPaletteCloneUnderCursor: 1
+  debugDropSearch: 1
 --- !u!114 &2111123592439188229
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1412,7 +1414,6 @@ MonoBehaviour:
   childX: 20
   defaultBlockHeight: 60
   debugLoopSize: 1
-  debugOnlyWhenHasChildren: 1
 --- !u!114 &770878201406150550
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1722,6 +1723,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8050edfe0f6aa48089db529c23abc40f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  debugDelete: 1
 --- !u!1 &4196495159992481253
 GameObject:
   m_ObjectHideFlags: 0
