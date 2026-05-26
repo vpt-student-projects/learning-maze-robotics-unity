@@ -4,7 +4,12 @@ using UnityEngine;
 public class BlockCommand : MonoBehaviour
 {
     public BlockType type = BlockType.MoveForward;
+
+    [Header("Loop")]
+    public LoopExecutionMode loopMode = LoopExecutionMode.RepeatCount;
     public int repeat = 1;
+
+    [HideInInspector] public BlockCommand loopBranchStart;
 
     [HideInInspector] public BlockCommand prev;
     [HideInInspector] public BlockCommand next;

@@ -100,7 +100,7 @@ public class MazeCameraController : MonoBehaviour
                 break;
         }
 
-        Debug.Log($"������ ��������� � ������: {viewMode}");
+        //Debug.Log($"������ ��������� � ������: {viewMode}");
     }
 
     private void SetupOrthographicTopView()

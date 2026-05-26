@@ -7,7 +7,14 @@ public enum BlockType
     MoveBackward,
     TurnLeft,
     TurnRight,
-    IfElse
+    IfElse,
+    Loop
+}
+
+public enum LoopExecutionMode
+{
+    RepeatCount,
+    UntilCarInCenter
 }
 
 public enum LidarSide

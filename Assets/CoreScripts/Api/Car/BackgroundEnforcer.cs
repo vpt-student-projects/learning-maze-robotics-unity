@@ -22,7 +22,7 @@ public class BackgroundEnforcer : MonoBehaviour
     {
         if (logStatusChanges)
         {
-            Debug.Log($"🎯 Application focus: {hasFocus}");
+            //Debug.Log($"🎯 Application focus: {hasFocus}");
         }
 
         // При потере фокуса усиливаем настройки фона
@@ -36,7 +36,7 @@ public class BackgroundEnforcer : MonoBehaviour
     {
         if (logStatusChanges)
         {
-            Debug.Log($"⏸️ Application pause: {pauseStatus}");
+            //Debug.Log($"⏸️ Application pause: {pauseStatus}");
         }
     }
 
@@ -52,10 +52,10 @@ public class BackgroundEnforcer : MonoBehaviour
 
         if (logStatusChanges)
         {
-            Debug.Log($"🔧 Background settings enforced: " +
+            /*Debug.Log($"🔧 Background settings enforced: " +
                      $"RunInBackground={Application.runInBackground}, " +
                      $"TargetFPS={Application.targetFrameRate}, " +
-                     $"SleepTimeout={Screen.sleepTimeout}");
+                     $"SleepTimeout={Screen.sleepTimeout}");*/
         }
     }
 
@@ -64,7 +64,7 @@ public class BackgroundEnforcer : MonoBehaviour
         // Постоянно применяем настройки чтобы другие системы их не меняли
         if (!Application.runInBackground && runInBackground)
         {
-            Debug.LogWarning("⚠️ runInBackground was disabled - re-enforcing");
+            //Debug.LogWarning("⚠️ runInBackground was disabled - re-enforcing");
             Application.runInBackground = true;
         }
 
@@ -77,9 +77,9 @@ public class BackgroundEnforcer : MonoBehaviour
     [ContextMenu("Print Current Settings")]
     private void PrintCurrentSettings()
     {
-        Debug.Log($"Current Settings - RunInBackground: {Application.runInBackground}, " +
+        /*Debug.Log($"Current Settings - RunInBackground: {Application.runInBackground}, " +
                  $"TargetFPS: {Application.targetFrameRate}, " +
                  $"SleepTimeout: {Screen.sleepTimeout}, " +
-                 $"HasFocus: {Application.isFocused}");
+                 $"HasFocus: {Application.isFocused}");*/
     }
 }

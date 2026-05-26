@@ -7,6 +7,14 @@ public class WorkspaceProgramRunner : MonoBehaviour
     public BlockChainManager chain;
     public LidarController lidar;
 
+    [Header("Maze Center")]
+    public Transform mazeCenter;
+    public Transform carCenter;
+    public float centerReachDistance = 0.35f;
+
+    [Header("Loop Safety")]
+    public int maxUntilCenterIterations = 200;
+
     private Coroutine runCo;
 
     public void Run()
@@ -44,11 +52,9 @@ public class WorkspaceProgramRunner : MonoBehaviour
 
         yield return new WaitUntil(() => car.IsCarReady());
 
-        // Даём лидарам обновиться после спавна/генерации
         yield return null;
         yield return null;
 
-        // Перед запуском выбираем нормальный живой лидар
         lidar = FindBestLiveLidarController();
 
         if (lidar == null)
@@ -62,7 +68,7 @@ public class WorkspaceProgramRunner : MonoBehaviour
         if (chain.workspaceRoot != null)
         {
             chain.RebuildFromWorkspace(chain.workspaceRoot);
-            chain.RefreshIfElseBranches();
+            chain.RefreshAllContainers();
 
             Debug.Log($"RUNNER: chain rebuilt, blocks count = {chain.DebugCount}");
         }
@@ -171,10 +177,130 @@ public class WorkspaceProgramRunner : MonoBehaviour
 
                 break;
 
+            case BlockType.Loop:
+                yield return ExecuteLoop(cmd);
+                break;
+
             default:
                 Debug.LogWarning("RUNNER: неизвестный тип блока: " + cmd.type);
                 break;
         }
+    }
+
+    private IEnumerator ExecuteLoop(BlockCommand cmd)
+    {
+        LoopBlockUI loopUI = cmd.GetComponent<LoopBlockUI>();
+
+        if (loopUI != null)
+            loopUI.ApplyToCommand();
+
+        if (cmd.loopBranchStart == null)
+        {
+            Debug.LogWarning("RUNNER LOOP: внутри цикла нет команд");
+            yield break;
+        }
+
+        if (cmd.loopMode == LoopExecutionMode.RepeatCount)
+        {
+            int repeatCount = Mathf.Max(1, cmd.repeat);
+
+            Debug.Log($"RUNNER LOOP REPEAT: repeat={repeatCount}");
+
+            for (int i = 0; i < repeatCount; i++)
+            {
+                Debug.Log($"RUNNER LOOP ITERATION: {i + 1}/{repeatCount}");
+                yield return ExecuteChain(cmd.loopBranchStart);
+            }
+
+            yield break;
+        }
+
+        if (cmd.loopMode == LoopExecutionMode.UntilCarInCenter)
+        {
+            Debug.Log("RUNNER LOOP UNTIL CENTER: start");
+
+            int iteration = 0;
+
+            while (!IsCarInMazeCenter())
+            {
+                iteration++;
+
+                if (iteration > maxUntilCenterIterations)
+                {
+                    Debug.LogWarning(
+                        $"RUNNER LOOP UNTIL CENTER: остановлено, превышен лимит {maxUntilCenterIterations}. " +
+                        "Проверь логику блоков, возможно робот не может попасть в центр."
+                    );
+
+                    yield break;
+                }
+
+                Debug.Log($"RUNNER LOOP UNTIL CENTER ITERATION: {iteration}");
+
+                yield return ExecuteChain(cmd.loopBranchStart);
+
+                yield return null;
+            }
+
+            Debug.Log("RUNNER LOOP UNTIL CENTER: robot is in center ✅");
+        }
+    }
+
+    private bool IsCarInMazeCenter()
+    {
+        Transform center = GetMazeCenterTransform();
+
+        if (center == null)
+        {
+            Debug.LogWarning("RUNNER CENTER: центр лабиринта не назначен. Назначь mazeCenter или создай объект MazeCenter.");
+            return false;
+        }
+
+        Transform carTransform = carCenter != null ? carCenter : car.transform;
+
+        Vector3 carPos = carTransform.position;
+        Vector3 centerPos = center.position;
+
+        Vector2 carXZ = new Vector2(carPos.x, carPos.z);
+        Vector2 centerXZ = new Vector2(centerPos.x, centerPos.z);
+
+        float distance = Vector2.Distance(carXZ, centerXZ);
+
+        Debug.Log($"RUNNER CENTER CHECK: distance={distance:F3}, need<={centerReachDistance:F3}");
+
+        return distance <= centerReachDistance;
+    }
+
+    private Transform GetMazeCenterTransform()
+    {
+        if (mazeCenter != null)
+            return mazeCenter;
+
+        GameObject taggedCenter = GameObject.FindWithTag("MazeCenter");
+
+        if (taggedCenter != null)
+        {
+            mazeCenter = taggedCenter.transform;
+            return mazeCenter;
+        }
+
+        GameObject namedCenter = GameObject.Find("MazeCenter");
+
+        if (namedCenter != null)
+        {
+            mazeCenter = namedCenter.transform;
+            return mazeCenter;
+        }
+
+        namedCenter = GameObject.Find("Center");
+
+        if (namedCenter != null)
+        {
+            mazeCenter = namedCenter.transform;
+            return mazeCenter;
+        }
+
+        return null;
     }
 
     private bool CheckIfCondition(BlockCommand cmd)
@@ -251,8 +377,6 @@ public class WorkspaceProgramRunner : MonoBehaviour
     {
         string pointName = GetLidarPointName(side);
 
-        // Каждый раз проверяем, что выбранный лидар живой.
-        // Если он показывает нули, выбираем другой.
         if (!IsLiveLidarController(lidar))
             lidar = FindBestLiveLidarController();
 
@@ -319,7 +443,6 @@ public class WorkspaceProgramRunner : MonoBehaviour
 
         float score = GetLidarLiveScore(controller);
 
-        // Если score почти ноль, это старый/нерабочий CarBody.
         return score > 0.01f;
     }
 
@@ -345,7 +468,6 @@ public class WorkspaceProgramRunner : MonoBehaviour
         if (point == null)
             return 0f;
 
-        // Нули игнорируем, потому что у тебя CarBody отдаёт 0.00 и ломает условие.
         if (point.singleLidarResult <= 0.001f)
             return 0f;
 
