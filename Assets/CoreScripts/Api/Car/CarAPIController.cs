@@ -350,6 +350,15 @@ public class CarAPIController : MonoBehaviour
         public MovementRecord[] records;
     }
 
+    [Serializable]
+    private class WheelMotorSpeedsRequest
+    {
+        public float frontLeft;
+        public float frontRight;
+        public float backLeft;
+        public float backRight;
+    }
+
 
     private async Task<string> HandleRequest(HttpListenerRequest request, HttpListenerResponse response)
     {
@@ -375,7 +384,7 @@ public class CarAPIController : MonoBehaviour
 
             if (path.StartsWith("/car/", StringComparison.OrdinalIgnoreCase))
             {
-                return await HandleCarRequest(path.ToLower(), method, response);
+                return await HandleCarRequest(path.ToLower(), method, request, response);
             }
 
             if (path.Equals("/status", StringComparison.OrdinalIgnoreCase) && method == "GET")
@@ -796,7 +805,12 @@ public class CarAPIController : MonoBehaviour
         }
     }
 
-    private async Task<string> HandleCarRequest(string path, string method, HttpListenerResponse response)
+    private bool IsMotorsControlMode()
+    {
+        return carController != null && carController.IsMotorsControlActive();
+    }
+
+    private async Task<string> HandleCarRequest(string path, string method, HttpListenerRequest request, HttpListenerResponse response)
     {
         try
         {
@@ -806,9 +820,19 @@ public class CarAPIController : MonoBehaviour
                 return "{\"status\":\"error\",\"message\":\"Car not ready yet\"}";
             }
 
+            if (path.StartsWith("/car/motors", StringComparison.OrdinalIgnoreCase))
+            {
+                return await HandleCarMotorsRequest(path, method, request, response);
+            }
+
             switch (path)
             {
                 case "/car/turn/left" when method == "POST" || method == "GET":
+                    if (IsMotorsControlMode())
+                    {
+                        response.StatusCode = 403;
+                        return "{\"status\":\"error\",\"message\":\"Node control disabled in API_Motors mode. Use /car/motors/set\"}";
+                    }
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.TurnLeft();
@@ -818,6 +842,11 @@ public class CarAPIController : MonoBehaviour
 
 
                 case "/car/turn/right" when method == "POST" || method == "GET":
+                    if (IsMotorsControlMode())
+                    {
+                        response.StatusCode = 403;
+                        return "{\"status\":\"error\",\"message\":\"Node control disabled in API_Motors mode. Use /car/motors/set\"}";
+                    }
                     mainThreadActions.Enqueue(() =>
                     {
                         carController.TurnRight();
@@ -827,6 +856,11 @@ public class CarAPIController : MonoBehaviour
 
 
                 case "/car/move/forward" when method == "POST" || method == "GET":
+                    if (IsMotorsControlMode())
+                    {
+                        response.StatusCode = 403;
+                        return "{\"status\":\"error\",\"message\":\"Node control disabled in API_Motors mode. Use /car/motors/set\"}";
+                    }
                     if (!carController.CanMoveForward())
                     {
                         response.StatusCode = 409;
@@ -841,6 +875,11 @@ public class CarAPIController : MonoBehaviour
 
 
                 case "/car/move/backward" when method == "POST" || method == "GET":
+                    if (IsMotorsControlMode())
+                    {
+                        response.StatusCode = 403;
+                        return "{\"status\":\"error\",\"message\":\"Node control disabled in API_Motors mode. Use /car/motors/set\"}";
+                    }
                     if (!carController.CanMoveBackward())
                     {
                         response.StatusCode = 409;
@@ -871,6 +910,130 @@ public class CarAPIController : MonoBehaviour
         {
             Debug.LogError($"Error in HandleCarRequest: {ex.Message}");
             response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private async Task<string> HandleCarMotorsRequest(string path, string method, HttpListenerRequest request, HttpListenerResponse response)
+    {
+        if (!IsMotorsControlMode())
+        {
+            response.StatusCode = 403;
+            return "{\"status\":\"error\",\"message\":\"Motor control is only available on Hard difficulty (API_Motors)\"}";
+        }
+
+        var motors = carController.GetWheelMotorController();
+        if (motors == null || !motors.IsInitialized)
+        {
+            response.StatusCode = 503;
+            return "{\"status\":\"error\",\"message\":\"Wheel motor controller not ready\"}";
+        }
+
+        switch (path)
+        {
+            case "/car/motors/set" when method == "POST":
+                return await HandleMotorsSetRequest(request, response);
+
+            case "/car/motors/stop" when method == "POST" || method == "GET":
+                mainThreadActions.Enqueue(() => carController.StopWheelMotors());
+                return $"{{\"status\":\"success\",\"action\":\"motors_stop\",\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+
+            case "/car/motors/status" when method == "GET":
+                return GetMotorsStatus();
+
+            default:
+                response.StatusCode = 404;
+                return "{\"status\":\"error\",\"message\":\"Motor endpoint not found. Use /car/motors/set, /car/motors/stop, /car/motors/status\"}";
+        }
+    }
+
+    private async Task<string> HandleMotorsSetRequest(HttpListenerRequest request, HttpListenerResponse response)
+    {
+        try
+        {
+            string body;
+            using (var reader = new System.IO.StreamReader(request.InputStream, request.ContentEncoding))
+            {
+                body = await reader.ReadToEndAsync();
+            }
+
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                response.StatusCode = 400;
+                return "{\"status\":\"error\",\"message\":\"JSON body required: frontLeft, frontRight, backLeft, backRight (-1..1)\"}";
+            }
+
+            var speeds = JsonUtility.FromJson<WheelMotorSpeedsRequest>(body);
+            if (speeds == null)
+            {
+                response.StatusCode = 400;
+                return "{\"status\":\"error\",\"message\":\"Invalid JSON\"}";
+            }
+
+            bool applied = false;
+            using (var doneEvent = new ManualResetEvent(false))
+            {
+                mainThreadActions.Enqueue(() =>
+                {
+                    applied = carController.SetWheelMotorSpeeds(
+                        speeds.frontLeft,
+                        speeds.frontRight,
+                        speeds.backLeft,
+                        speeds.backRight);
+                    doneEvent.Set();
+                });
+
+                if (!doneEvent.WaitOne(200))
+                {
+                    response.StatusCode = 504;
+                    return "{\"status\":\"error\",\"message\":\"Timed out while applying motor speeds\"}";
+                }
+            }
+
+            if (!applied)
+            {
+                response.StatusCode = 503;
+                return "{\"status\":\"error\",\"message\":\"Failed to apply motor speeds\"}";
+            }
+
+            return $"{{\"status\":\"success\",\"action\":\"motors_set\",\"speeds\":{{\"frontLeft\":{speeds.frontLeft.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)},\"frontRight\":{speeds.frontRight.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)},\"backLeft\":{speeds.backLeft.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)},\"backRight\":{speeds.backRight.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}}},\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}";
+        }
+        catch (Exception ex)
+        {
+            response.StatusCode = 500;
+            return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
+        }
+    }
+
+    private string GetMotorsStatus()
+    {
+        try
+        {
+            var motors = carController.GetWheelMotorController();
+            if (motors == null)
+                return "{\"status\":\"error\",\"message\":\"Motor controller not found\"}";
+
+            float fl = 0f, fr = 0f, bl = 0f, br = 0f;
+            using (var doneEvent = new ManualResetEvent(false))
+            {
+                mainThreadActions.Enqueue(() =>
+                {
+                    fl = motors.GetFrontLeftSpeed();
+                    fr = motors.GetFrontRightSpeed();
+                    bl = motors.GetBackLeftSpeed();
+                    br = motors.GetBackRightSpeed();
+                    doneEvent.Set();
+                });
+
+                if (!doneEvent.WaitOne(200))
+                    return "{\"status\":\"error\",\"message\":\"Timed out while reading motor status\"}";
+            }
+
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            return $"{{\"status\":\"success\",\"motors\":{{\"enabled\":{motors.MotorsEnabled.ToString().ToLower()},\"initialized\":{motors.IsInitialized.ToString().ToLower()},\"speeds\":{{\"frontLeft\":{fl.ToString("F3", inv)},\"frontRight\":{fr.ToString("F3", inv)},\"backLeft\":{bl.ToString("F3", inv)},\"backRight\":{br.ToString("F3", inv)}}}}}}}";
+        }
+        catch (Exception ex)
+        {
             return $"{{\"status\":\"error\",\"message\":\"{EscapeJsonString(ex.Message)}\"}}";
         }
     }
@@ -1102,7 +1265,7 @@ public class CarAPIController : MonoBehaviour
     {
         try
         {
-            return $"{{\"status\":\"success\",\"info\":{{\"name\":\"Maze Car Controller\",\"version\":\"1.1\",\"ports\":{{\"api\":{port}}},\"features\":[\"car_control\",\"lidar_sensors\",\"maze_navigation\",\"timer\",\"restart\"],\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}}}";
+            return $"{{\"status\":\"success\",\"info\":{{\"name\":\"Maze Car Controller\",\"version\":\"1.2\",\"ports\":{{\"api\":{port}}},\"features\":[\"car_control\",\"wheel_motors\",\"lidar_sensors\",\"maze_navigation\",\"timer\",\"restart\"],\"timestamp\":\"{DateTime.Now:yyyy-MM-dd HH:mm:ss}\"}}}}";
         }
         catch (Exception ex)
         {

@@ -49,6 +49,7 @@ public class CarController : MonoBehaviour
     private MazeData mazeData;
     private Dictionary<Vector2Int, NodeInfo> nodeMap;
     private Coroutine currentMovementCoroutine;
+    private CarWheelMotorController wheelMotorController;
 
     public void InitializeCar(bool forceReinitialize = false)
     {
@@ -97,6 +98,7 @@ public class CarController : MonoBehaviour
         isRotating = false;
         isInitialized = false;
         currentDirection = 0;
+        wheelMotorController = null;
     }
 
     private IEnumerator InitializeCarCoroutine()
@@ -162,6 +164,73 @@ public class CarController : MonoBehaviour
     public bool IsCarReady()
     {
         return isInitialized && carInstance != null && currentNode != null;
+    }
+
+    public GameObject GetCarInstance() => carInstance;
+
+    public CarWheelMotorController GetWheelMotorController() => wheelMotorController;
+
+    public bool SetWheelMotorSpeeds(float frontLeft, float frontRight, float backLeft, float backRight)
+    {
+        if (!IsMotorsControlActive() || wheelMotorController == null || !wheelMotorController.MotorsEnabled)
+            return false;
+
+        wheelMotorController.SetWheelSpeeds(frontLeft, frontRight, backLeft, backRight);
+        return true;
+    }
+
+    public bool StopWheelMotors()
+    {
+        if (wheelMotorController == null) return false;
+        wheelMotorController.StopMotors();
+        return true;
+    }
+
+    public bool IsMotorsControlActive()
+    {
+        ControlModeManager modeManager = FindObjectOfType<ControlModeManager>();
+        return modeManager != null && modeManager.GetCurrentControlMode() == ControlMode.API_Motors;
+    }
+
+    /// <summary>
+    /// Настройка физики и моторов колёс после выбора сложности / режима управления.
+    /// </summary>
+    public void ApplyControlModeSettings(ControlMode mode)
+    {
+        if (carInstance == null) return;
+
+        EnsureWheelMotorController();
+
+        bool motorsMode = mode == ControlMode.API_Motors;
+
+        Rigidbody rb = carInstance.GetComponent<Rigidbody>();
+        if (rb != null && motorsMode)
+        {
+            rb.isKinematic = true;
+        }
+
+        if (wheelMotorController != null)
+        {
+            wheelMotorController.SetMotorsEnabled(motorsMode);
+        }
+
+        Debug.Log($"🚗 Режим машинки: {mode}, kinematic={(rb != null && rb.isKinematic)}, motors={motorsMode}");
+    }
+
+    private void EnsureWheelMotorController()
+    {
+        if (carInstance == null) return;
+
+        if (wheelMotorController == null)
+        {
+            wheelMotorController = carInstance.GetComponent<CarWheelMotorController>();
+            if (wheelMotorController == null)
+            {
+                wheelMotorController = carInstance.AddComponent<CarWheelMotorController>();
+            }
+        }
+
+        wheelMotorController.InitializeWheels(carInstance.transform);
     }
 
     private void BuildNodeMap()
@@ -284,6 +353,21 @@ public class CarController : MonoBehaviour
 
         currentDirection = 0;
         UpdateCarRotationImmediate();
+        EnsureWheelMotorController();
+
+        ControlModeManager modeManager = FindObjectOfType<ControlModeManager>();
+        if (modeManager != null)
+        {
+            ApplyControlModeSettings(modeManager.GetCurrentControlMode());
+        }
+        else if (mazeGenerator != null)
+        {
+            ApplyControlModeSettings(
+                mazeGenerator.GetSelectedDifficulty() == DifficultyLevel.Hard
+                    ? ControlMode.API_Motors
+                    : ControlMode.API_Nodes);
+        }
+
         NotifyCarSpawned();
     }
 
@@ -360,6 +444,7 @@ public class CarController : MonoBehaviour
 
     private void HandleInput()
     {
+        if (IsMotorsControlActive()) return;
         if (carInstance == null || currentNode == null || isMoving || isRotating) return;
 
         if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow))

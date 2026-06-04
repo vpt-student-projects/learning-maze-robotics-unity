@@ -52,8 +52,11 @@ public class ControlModeManager : MonoBehaviour
                 break;
 
             case DifficultyLevel.Medium:
-            case DifficultyLevel.Hard:
                 mode = ControlMode.API_Nodes;
+                break;
+
+            case DifficultyLevel.Hard:
+                mode = ControlMode.API_Motors;
                 break;
 
             case DifficultyLevel.Pro:
@@ -103,15 +106,26 @@ public class ControlModeManager : MonoBehaviour
                 break;
 
             case ControlMode.API_Motors:
-                // Профи - скрываем панель блоков
                 SetBlocksPanelVisible(false);
                 EnsureAPIServerRunning();
-                Debug.LogWarning("⚠️ Режим API_Motors пока не реализован");
+                Debug.Log("⚙️ Режим API_Motors: управление скоростью колёс");
                 break;
         }
 
-        // Панель генерации всегда остается видимой
         EnsureGenerationPanelVisible();
+        ApplyCarControlSettings();
+    }
+
+    private void ApplyCarControlSettings()
+    {
+        CarController car = FindObjectOfType<CarController>();
+        if (car == null)
+        {
+            Debug.LogWarning("⚠️ CarController не найден для применения режима управления");
+            return;
+        }
+
+        car.ApplyControlModeSettings(currentControlMode);
     }
 
     /// <summary>
