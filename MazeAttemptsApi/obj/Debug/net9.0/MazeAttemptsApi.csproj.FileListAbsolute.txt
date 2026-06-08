@@ -61,3 +61,30 @@ C:\Users\user\Source\Repos\delivery\learning-maze-robotics-unity\MazeAttemptsApi
 C:\Users\user\Source\Repos\delivery\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.pdb
 C:\Users\user\Source\Repos\delivery\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.genruntimeconfig.cache
 C:\Users\user\Source\Repos\delivery\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\ref\MazeAttemptsApi.dll
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\appsettings.Development.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\appsettings.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.staticwebassets.endpoints.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.exe
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.deps.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.runtimeconfig.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.dll
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\MazeAttemptsApi.pdb
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\bin\Debug\net9.0\Npgsql.dll
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.csproj.AssemblyReference.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.AssemblyInfoInputs.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.AssemblyInfo.cs
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.csproj.CoreCompileInputs.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.MvcApplicationPartsAssemblyInfo.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.sourcelink.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\scopedcss\bundle\MazeAttemptsApi.styles.css
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\staticwebassets.build.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\staticwebassets.build.json.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\staticwebassets.development.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\staticwebassets.build.endpoints.json
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAtte.F9081F40.Up2Date
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.dll
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\refint\MazeAttemptsApi.dll
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.pdb
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\MazeAttemptsApi.genruntimeconfig.cache
+C:\Users\B-ZONE\OneDrive\Рабочий стол\learning-maze-robotics-unity\MazeAttemptsApi\obj\Debug\net9.0\ref\MazeAttemptsApi.dll
