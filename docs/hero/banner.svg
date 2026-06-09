@@ -1,0 +1,60 @@
+<svg width="1600" height="520" viewBox="0 0 1600 520" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1600" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1020"/>
+      <stop offset="0.45" stop-color="#111B3A"/>
+      <stop offset="1" stop-color="#102A43"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="260" y1="40" x2="1340" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5EEAD4"/>
+      <stop offset="0.5" stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#A78BFA"/>
+    </linearGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="520" rx="34" fill="url(#bg)"/>
+  <path d="M80 420 C280 300, 390 520, 560 390 S830 250, 1030 360 S1320 490, 1520 320" stroke="url(#accent)" stroke-width="3" opacity="0.45"/>
+  <path d="M80 120 C300 230, 430 20, 650 150 S910 280, 1130 150 S1360 20, 1520 170" stroke="url(#accent)" stroke-width="2" opacity="0.28"/>
+
+  <g opacity="0.16">
+    <path d="M160 80 H410 V140 H220 V210 H470 V270 H160 Z" stroke="#E5E7EB" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M1190 110 H1450 V170 H1260 V240 H1500 V300 H1190 Z" stroke="#E5E7EB" stroke-width="10" stroke-linejoin="round"/>
+    <path d="M1050 350 H1380 V410 H1140 V465 H1510" stroke="#E5E7EB" stroke-width="10" stroke-linejoin="round"/>
+  </g>
+
+  <g filter="url(#glow)">
+    <circle cx="800" cy="252" r="112" fill="#0F172A" stroke="url(#accent)" stroke-width="6"/>
+    <rect x="730" y="205" width="140" height="100" rx="22" fill="#111827" stroke="#5EEAD4" stroke-width="5"/>
+    <circle cx="770" cy="250" r="14" fill="#5EEAD4"/>
+    <circle cx="830" cy="250" r="14" fill="#60A5FA"/>
+    <path d="M760 287 C780 306, 820 306, 840 287" stroke="#A78BFA" stroke-width="7" stroke-linecap="round"/>
+    <path d="M800 205 V170" stroke="#5EEAD4" stroke-width="6" stroke-linecap="round"/>
+    <circle cx="800" cy="160" r="13" fill="#A78BFA"/>
+    <path d="M730 235 H700" stroke="#60A5FA" stroke-width="7" stroke-linecap="round"/>
+    <path d="M870 235 H900" stroke="#60A5FA" stroke-width="7" stroke-linecap="round"/>
+    <rect x="705" y="305" width="55" height="28" rx="12" fill="#5EEAD4" opacity="0.85"/>
+    <rect x="840" y="305" width="55" height="28" rx="12" fill="#60A5FA" opacity="0.85"/>
+  </g>
+
+  <text x="800" y="86" text-anchor="middle" fill="#E5E7EB" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="6">UNITY EDUCATIONAL ROBOTICS SIMULATOR</text>
+  <text x="800" y="405" text-anchor="middle" fill="white" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="70" font-weight="900">Learning Maze Robotics</text>
+  <text x="800" y="458" text-anchor="middle" fill="#CBD5E1" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" font-weight="500">Visual Programming • REST API • PostgreSQL • Unity Test Runner</text>
+
+  <g opacity="0.9">
+    <rect x="118" y="64" width="150" height="44" rx="22" fill="#0F172A" stroke="#5EEAD4"/>
+    <text x="193" y="93" text-anchor="middle" fill="#A7F3D0" font-family="Inter, Segoe UI, Arial" font-size="20" font-weight="700">Unity</text>
+    <rect x="293" y="64" width="150" height="44" rx="22" fill="#0F172A" stroke="#60A5FA"/>
+    <text x="368" y="93" text-anchor="middle" fill="#BFDBFE" font-family="Inter, Segoe UI, Arial" font-size="20" font-weight="700">C#</text>
+    <rect x="1160" y="64" width="150" height="44" rx="22" fill="#0F172A" stroke="#A78BFA"/>
+    <text x="1235" y="93" text-anchor="middle" fill="#DDD6FE" font-family="Inter, Segoe UI, Arial" font-size="20" font-weight="700">API</text>
+    <rect x="1335" y="64" width="150" height="44" rx="22" fill="#0F172A" stroke="#60A5FA"/>
+    <text x="1410" y="93" text-anchor="middle" fill="#BFDBFE" font-family="Inter, Segoe UI, Arial" font-size="20" font-weight="700">DB</text>
+  </g>
+</svg>

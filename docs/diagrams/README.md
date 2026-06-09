@@ -1,0 +1,1 @@
+Mermaid diagrams are embedded directly in README.md.
