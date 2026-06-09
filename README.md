@@ -261,8 +261,8 @@ erDiagram
 ### 1. Clone repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-cd YOUR_REPOSITORY
+git clone https://github.com/vpt-student-projects/learning-maze-robotics-unity.git
+cd learning-maze-robotics-unity
 ```
 
 ### 2. Open Unity project
@@ -352,23 +352,6 @@ LearningMazeRobotics/
 - основы движения робота в среде;
 - взаимодействие клиента, сервера и базы данных;
 - тестирование программной системы.
-
----
-
-## 🧭 Roadmap
-
-- [x] Unity-сцена лабиринта
-- [x] Окно регистрации и входа
-- [x] Генерация лабиринта по параметрам
-- [x] Управление машинкой
-- [x] Визуальные командные блоки
-- [x] REST API
-- [x] PostgreSQL
-- [x] Unity Test Runner tests
-- [ ] WebGL demo build
-- [ ] Replay visualization
-- [ ] Statistics dashboard
-- [ ] Export attempt history
 
 ---
 
